@@ -43,7 +43,15 @@ test = [
   'pytest>=8.0',
   'pytest-cov>=5.0',
 ]
-playwright = ['playwright', 'sphinx', 'sphinx-gallery']
+playwright = [
+  'matplotlib',
+  'numpydoc',
+  'playwright',
+  'sphinx',
+  'sphinx-book-theme',
+  'sphinx-design',
+  'sphinx-gallery',
+]
 dev = [
   'mypy>=1.10',
   'pre-commit',
