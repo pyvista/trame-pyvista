@@ -84,7 +84,12 @@ version_scheme = 'release-branch-semver'
 [tool.ruff]
 line-length = 99
 src = ['.']
-extend-exclude = ['trame_pyvista/_version.py', 'tests/tinypages']
+extend-exclude = [
+  'trame_pyvista/_version.py',
+  'tests/tinypages',
+  # Byte-for-byte match upstream trame namespace contributors
+  'trame/widgets/__init__.py',
+]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -136,7 +141,7 @@ known-third-party = ['trame']
 
 [tool.ruff.lint.per-file-ignores]
 '__init__.py' = ['E402', 'F401', 'PLC0414']
-'trame/widgets/__init__.py' = ['D104']
+'trame/widgets/__init__.py' = ['D104', 'I002', 'Q000']
 'examples/**' = ['D', 'E501', 'INP001', 'T20']
 'tests/**' = ['B018', 'D', 'INP001', 'S101', 'T20']
 'trame_pyvista/ui/**' = ['D101', 'D102', 'D103', 'E501']
