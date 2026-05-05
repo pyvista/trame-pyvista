@@ -13,32 +13,30 @@ has_trame = True
 try:
     from trame.app import get_server
 
-    from pyvista.trame.jupyter import EmbeddableWidget
-    from pyvista.trame.jupyter import Widget
-    from pyvista.trame.jupyter import build_url
-    from pyvista.trame.jupyter import elegantly_launch
-    from pyvista.trame.ui import base_viewer
-    from pyvista.trame.ui import get_viewer
-    from pyvista.trame.ui import plotter_ui
-    from pyvista.trame.ui.vuetify2 import divider as vue2_divider
-    from pyvista.trame.ui.vuetify2 import select as vue2_select
-    from pyvista.trame.ui.vuetify2 import slider as vue2_slider
-    from pyvista.trame.ui.vuetify2 import text_field as vue2_text_field
-    from pyvista.trame.ui.vuetify3 import divider as vue3_divider
-    from pyvista.trame.ui.vuetify3 import select as vue3_select
-    from pyvista.trame.ui.vuetify3 import slider as vue3_slider
-    from pyvista.trame.ui.vuetify3 import text_field as vue3_text_field
-    from pyvista.trame.views import PyVistaLocalView
-    from pyvista.trame.views import PyVistaRemoteLocalView
-    from pyvista.trame.views import PyVistaRemoteView
-    from pyvista.trame.views import _BasePyVistaView
+    from trame_pyvista.jupyter import EmbeddableWidget
+    from trame_pyvista.jupyter import Widget
+    from trame_pyvista.jupyter import build_url
+    from trame_pyvista.jupyter import elegantly_launch
+    from trame_pyvista.ui import base_viewer
+    from trame_pyvista.ui import get_viewer
+    from trame_pyvista.ui import plotter_ui
+    from trame_pyvista.ui.vuetify2 import divider as vue2_divider
+    from trame_pyvista.ui.vuetify2 import select as vue2_select
+    from trame_pyvista.ui.vuetify2 import slider as vue2_slider
+    from trame_pyvista.ui.vuetify2 import text_field as vue2_text_field
+    from trame_pyvista.ui.vuetify3 import divider as vue3_divider
+    from trame_pyvista.ui.vuetify3 import select as vue3_select
+    from trame_pyvista.ui.vuetify3 import slider as vue3_slider
+    from trame_pyvista.ui.vuetify3 import text_field as vue3_text_field
+    from trame_pyvista.views import PyVistaLocalView
+    from trame_pyvista.views import PyVistaRemoteLocalView
+    from trame_pyvista.views import PyVistaRemoteView
+    from trame_pyvista.views import _BasePyVistaView
 except ImportError:
     has_trame = False
 
 pytestmark = [
     pytest.mark.skipif(not has_trame, reason='Requires trame'),
-    pytest.mark.skip_plotting,
-    pytest.mark.skip_check_gc,
     pytest.mark.filterwarnings(
         r'ignore:It is recommended to use web\.AppKey instances for '
         r'keys:aiohttp.web_exceptions.NotAppKeyWarning'
@@ -360,7 +358,6 @@ def test_trame_int64():
     assert isinstance(widget, Widget)
 
 
-@pytest.mark.skip_plotting
 def test_trame_export_html(tmpdir):
     filename = str(tmpdir.join('tmp.html'))
     pl = pv.Plotter()
@@ -440,7 +437,7 @@ def test_embeddable_widget():
 
 
 def test_ipywidgets_raises(monkeypatch: pytest.MonkeyPatch):
-    from pyvista.trame import jupyter
+    from trame_pyvista import jupyter
 
     monkeypatch.setattr(jupyter, 'HTML', object)
     with pytest.raises(ImportError, match=r'Please install `ipywidgets`.'):

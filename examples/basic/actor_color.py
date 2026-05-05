@@ -6,7 +6,7 @@ from trame.widgets import vuetify3
 
 import pyvista as pv
 from pyvista.plotting.colors import hexcolors
-from pyvista.trame.ui import plotter_ui
+from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
 # Trame initialization

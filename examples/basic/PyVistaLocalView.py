@@ -12,7 +12,7 @@ from trame.widgets import vuetify3
 
 import pyvista as pv
 from pyvista import examples
-from pyvista.trame import PyVistaLocalView
+from trame_pyvista import PyVistaLocalView
 
 server = get_server(client_type='vue3')
 state, ctrl = server.state, server.controller

@@ -2,7 +2,7 @@
 
 This base class defines methods to manipulate a PyVista Plotter.
 This base class does not define a `ui` method, but its derived classes do.
-See `pyvista.trame.ui.vuetify2` and ``pyvista.trame.ui.vuetify3` for its derived classes.
+See `trame_pyvista.ui.vuetify2` and ``trame_pyvista.ui.vuetify3` for its derived classes.
 """
 
 from __future__ import annotations

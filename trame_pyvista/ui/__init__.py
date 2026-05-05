@@ -43,7 +43,7 @@ def get_viewer(plotter, server=None, suppress_rendering=False):
 
     Returns
     -------
-    pyvista.trame.ui.Viewer
+    trame_pyvista.ui.Viewer
         Trame viewer.
 
     """

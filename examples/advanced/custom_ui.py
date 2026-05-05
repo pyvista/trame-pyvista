@@ -13,7 +13,7 @@ from trame.widgets import vuetify3
 
 import pyvista as pv
 from pyvista import examples
-from pyvista.trame.ui import get_viewer
+from trame_pyvista.ui import get_viewer
 
 pv.OFF_SCREEN = True
 

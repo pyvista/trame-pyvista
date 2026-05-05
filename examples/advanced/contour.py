@@ -7,7 +7,7 @@ from vtkmodules.vtkFiltersCore import vtkContourFilter
 
 import pyvista as pv
 from pyvista import examples
-from pyvista.trame.ui import plotter_ui
+from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
 # Trame initialization

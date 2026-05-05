@@ -1,6 +1,6 @@
 """PyVista Trame Viewer class for a Vue 3 client.
 
-This class, derived from `pyvista.trame.ui.base_viewer`,
+This class, derived from `trame_pyvista.ui.base_viewer`,
 is intended for use with a trame application where the client type is "vue3".
 Therefore, the `ui` method implemented by this class utilizes the API of Vuetify 3.
 """
@@ -13,9 +13,9 @@ from trame.ui.vuetify3 import VAppLayout
 from trame.widgets import html
 from trame.widgets import vuetify3 as vuetify
 
-from pyvista.trame.views import PyVistaLocalView
-from pyvista.trame.views import PyVistaRemoteLocalView
-from pyvista.trame.views import PyVistaRemoteView
+from trame_pyvista.views import PyVistaLocalView
+from trame_pyvista.views import PyVistaRemoteLocalView
+from trame_pyvista.views import PyVistaRemoteView
 
 from .base_viewer import BaseViewer
 

@@ -36,7 +36,7 @@ extensions = [
     'numpydoc',
     'matplotlib.sphinxext.plot_directive',
     'pyvista.ext.plot_directive',
-    'pyvista.ext.viewer_directive',
+    'trame_pyvista.sphinx_ext',
     'sphinx.ext.autosummary',
     'sphinx_design',
 ]

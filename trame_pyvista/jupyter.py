@@ -23,10 +23,10 @@ except ImportError:
 
 
 import pyvista as pv
-from pyvista.trame.ui import UI_TITLE
-from pyvista.trame.ui import get_viewer
-from pyvista.trame.views import CLOSED_PLOTTER_ERROR
-from pyvista.trame.views import get_server
+from trame_pyvista.ui import UI_TITLE
+from trame_pyvista.ui import get_viewer
+from trame_pyvista.views import CLOSED_PLOTTER_ERROR
+from trame_pyvista.views import get_server
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
     from pyvista.jupyter import JupyterBackendOptions
     from pyvista.plotting.plotter import Plotter
-    from pyvista.trame.ui.vuetify2 import Viewer
+    from trame_pyvista.ui.vuetify2 import Viewer
 
 SERVER_DOWN_MESSAGE = """Trame server has not launched.
 
@@ -44,7 +44,7 @@ with PyVista.
 
 You can use the following snippet to launch the server:
 
-    from pyvista.trame.jupyter import launch_server
+    from trame_pyvista.jupyter import launch_server
     await launch_server('{name}').ready
 
 """
@@ -175,7 +175,7 @@ def launch_server(server=None, port=None, host=None, wslink_backend=None, **kwar
         is used.
 
     **kwargs : dict, optional
-        Any additional keyword arguments to pass to ``pyvista.trame.views.get_server``.
+        Any additional keyword arguments to pass to ``trame_pyvista.views.get_server``.
 
     Returns
     -------
@@ -452,7 +452,7 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
     a way that does not require users to await the call.
 
     This is a thin wrapper of
-    :func:`launch_server() <pyvista.trame.jupyter.launch_server>`.
+    :func:`launch_server() <trame_pyvista.jupyter.launch_server>`.
 
     Returns
     -------
@@ -473,7 +473,7 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
         msg = (
             'Please install `nest_asyncio2` to automagically launch the trame server '
             'without await. Or, to avoid `nest_asyncio2` run:\n\n'
-            'from pyvista.trame.jupyter import launch_server\n'
+            'from trame_pyvista.jupyter import launch_server\n'
             'await launch_server().ready'
         )
         raise ImportError(msg)
