@@ -7,6 +7,7 @@ See `trame_pyvista.ui.vuetify2` and ``trame_pyvista.ui.vuetify3` for its derived
 
 from __future__ import annotations
 
+import asyncio
 import io
 from typing import TYPE_CHECKING
 
@@ -28,10 +29,38 @@ class BaseViewer:
         Current Server for Trame Application.
     suppress_rendering : bool, default=False
         Whether to suppress rendering on the Plotter.
+    animate : bool, default=False
+        Opt-in continuous re-rendering loop. When ``True``, the viewer
+        schedules an async task that calls :meth:`update` every
+        ``animation_delay`` seconds for the lifetime of each connected
+        client. Useful when the underlying scene mutates from a
+        background thread or external process and the application code
+        would otherwise have to call :meth:`update` explicitly.
+
+        .. warning::
+
+           This is **expensive**. The loop redraws unconditionally
+           regardless of whether the scene actually changed, which
+           pegs a CPU core, drives needless re-renders, and floods
+           the websocket with image deltas. Prefer calling
+           :meth:`update` from the code path that mutates state.
+           Only enable this when no such hook is available.
+
+    animation_delay : float, default=0.01
+        Seconds between :meth:`update` calls when ``animate=True``.
+        Increase to reduce overhead at the cost of update latency.
 
     """
 
-    def __init__(self, plotter, server=None, suppress_rendering=False):
+    def __init__(
+        self,
+        plotter,
+        server=None,
+        suppress_rendering=False,
+        *,
+        animate=False,
+        animation_delay=0.01,
+    ):
         """Initialize Viewer."""
         self._html_views = set()
 
@@ -40,6 +69,7 @@ class BaseViewer:
         self.server = server
         self.plotter = plotter
         self.plotter.suppress_rendering = suppress_rendering
+        self.animation_delay = animation_delay
 
         # State variable names
         self.SHOW_UI = f'{plotter._id_name}_show_ui'
@@ -60,6 +90,19 @@ class BaseViewer:
         server.state[self.EDGES] = False
         server.state[self.AXIS] = False
         server.state[self.PARALLEL] = False
+
+        if animate:
+            server.controller.on_client_connected.add_task(self._animate)
+
+    async def _animate(self, **_):
+        """Continuously redraw all associated views.
+
+        Scheduled per-connected-client when ``animate=True``. See the
+        warning in the class docstring before enabling.
+        """
+        while True:
+            await asyncio.sleep(self.animation_delay)
+            self.update()
 
     @property
     def views(self):  # numpydoc ignore=RT01
