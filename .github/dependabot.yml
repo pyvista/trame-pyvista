@@ -13,4 +13,4 @@ updates:
     labels: [maintenance, dependencies]
     groups:
       artifacts:
-        patterns: ['actions/upload-artifact', 'actions/download-artifact']
+        patterns: ["actions/upload-artifact", "actions/download-artifact"]
