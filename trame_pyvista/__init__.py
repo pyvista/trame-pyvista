@@ -11,6 +11,7 @@ try:
 except ImportError:  # pragma: no cover
     __version__ = '0.0.0'
 
+from pyvista import register_jupyter_backend
 from pyvista import register_plotter_component
 
 from trame_pyvista.components import TrameComponent
@@ -24,6 +25,26 @@ from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
 
 register_plotter_component('trame', override=True)(TrameComponent)
+
+
+# Override pyvista's bundled trame jupyter handlers so the backends
+# resolve to this package. Without override=True, pyvista falls through
+# to its internal `pyvista.trame.jupyter` shim because the names collide
+# with built-in backend identifiers. PyVista's custom-handler dispatch
+# does not forward the backend name, so each registration captures its
+# own ``mode``.
+def _make_handler(_mode: str):
+    def _handler(plotter, **kwargs):
+        kwargs.setdefault('mode', _mode)
+        return show_trame(plotter, **kwargs)
+
+    _handler.__name__ = f'show_trame_{_mode}'
+    return _handler
+
+
+for _backend in ('trame', 'server', 'client', 'html'):
+    register_jupyter_backend(_backend, _make_handler(_backend), override=True)
+del _backend
 
 
 __all__ = [

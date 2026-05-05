@@ -299,6 +299,7 @@ def show_trame(
     default_server_rendering: bool = True,
     handler: Callable[Concatenate[Viewer, str, ...], IFrame] | None = None,
     animate: bool = False,
+    screenshot: object = None,
     **kwargs,
 ) -> EmbeddableWidget | IFrame | Widget:
     """Run and display the trame application in jupyter's event loop.
