@@ -86,7 +86,7 @@ class TrameJupyterServerDownError(RuntimeError):
 class Widget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Custom HTML iframe widget for trame viewer."""
 
-    def __init__(self, viewer, src, width=None, height=None, iframe_attrs=None, **kwargs):
+    def __init__(self, viewer, src, *, width=None, height=None, iframe_attrs=None, **kwargs):
         """Initialize."""
         if HTML is object:
             msg = 'Please install `ipywidgets`.'
@@ -129,7 +129,7 @@ class Widget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
 class EmbeddableWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Custom HTML iframe widget for embedding the trame viewer."""
 
-    def __init__(self, plotter, width, height, **kwargs):
+    def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""
         if HTML is object:
             msg = 'Please install `ipywidgets`.'
@@ -147,7 +147,7 @@ class EmbeddableWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
         self._src = src
 
 
-def launch_server(server=None, port=None, host=None, wslink_backend=None, **kwargs):
+def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **kwargs):
     """Launch a trame server for use with Jupyter.
 
     Parameters
@@ -228,6 +228,7 @@ def launch_server(server=None, port=None, host=None, wslink_backend=None, **kwar
 
 def build_url(
     _server,
+    *,
     ui=None,
     server_proxy_enabled=None,
     server_proxy_prefix=None,
@@ -253,10 +254,10 @@ def build_url(
 def initialize(
     server,
     plotter,
+    *,
     mode=None,
     default_server_rendering=True,
     collapse_menu=False,
-    *,
     animate=False,
     **kwargs,
 ):  # numpydoc ignore=PR01,RT01
@@ -285,6 +286,7 @@ def initialize(
 
 def show_trame(
     plotter: Plotter,
+    *,
     mode: JupyterBackendOptions | str | None = None,
     name: str | None = None,
     server_proxy_enabled: bool | None = None,

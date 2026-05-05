@@ -133,6 +133,7 @@ class PyVistaRemoteView(VtkRemoteView, _BasePyVistaView):  # type: ignore[misc]
     def __init__(
         self,
         plotter,
+        *,
         interactive_ratio=None,
         still_ratio=None,
         namespace=None,
@@ -187,7 +188,7 @@ class PyVistaLocalView(VtkLocalView, _BasePyVistaView):  # type: ignore[misc]
 
     """
 
-    def __init__(self, plotter, namespace=None, **kwargs):
+    def __init__(self, plotter, *, namespace=None, **kwargs):
         """Create a trame local view from a PyVista Plotter."""
         _BasePyVistaView.__init__(self, plotter)
         if namespace is None:
@@ -247,6 +248,7 @@ class PyVistaRemoteLocalView(VtkRemoteLocalView, _BasePyVistaView):  # type: ign
     def __init__(
         self,
         plotter,
+        *,
         interactive_ratio=None,
         still_ratio=None,
         namespace=None,

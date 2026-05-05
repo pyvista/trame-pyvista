@@ -59,6 +59,7 @@ class TrameComponent:
 
     def export_vtksz(
         self,
+        *,
         filename: str | Path | None = 'scene-export.vtksz',
         format: Literal['zip', 'json'] = 'zip',  # noqa: A002
     ) -> str | Path | bytes:

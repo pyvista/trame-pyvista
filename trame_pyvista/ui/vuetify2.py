@@ -105,7 +105,7 @@ class Viewer(BaseViewer):
         """
         return VAppLayout(*args, **kwargs)
 
-    def ui_controls(self, mode=None, default_server_rendering=True, v_show=None):
+    def ui_controls(self, *, mode=None, default_server_rendering=True, v_show=None):
         """Create a VRow for the UI controls.
 
         Parameters
@@ -233,6 +233,7 @@ class Viewer(BaseViewer):
 
     def ui(
         self,
+        *,
         mode=None,
         default_server_rendering=True,
         collapse_menu=False,

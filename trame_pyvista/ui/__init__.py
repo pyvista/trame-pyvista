@@ -23,7 +23,7 @@ _VIEWERS: dict[str, BaseViewer] = {}
 UI_TITLE = 'PyVista'
 
 
-def get_viewer(plotter, server=None, suppress_rendering=False, *, animate=False):
+def get_viewer(plotter, *, server=None, suppress_rendering=False, animate=False):
     """Get a Viewer instance for a given Plotter.
 
     There should be only one Viewer instance per plotter. A Viewer
@@ -79,11 +79,11 @@ def get_viewer(plotter, server=None, suppress_rendering=False, *, animate=False)
 
 def plotter_ui(
     plotter,
+    *,
     mode=None,
     default_server_rendering=True,
     collapse_menu=False,
     add_menu=True,
-    *,
     animate=False,
     **kwargs,
 ):

@@ -55,9 +55,9 @@ class BaseViewer:
     def __init__(
         self,
         plotter,
+        *,
         server=None,
         suppress_rendering=False,
-        *,
         animate=False,
         animation_delay=0.01,
     ):

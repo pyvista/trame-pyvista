@@ -222,7 +222,7 @@ def test_trame_custom_menu_items(client_type):
         )
 
     src = build_url(server, ui=pl._id_name, host='localhost', protocol='http')
-    widget = Widget(viewer, src, '99%', '600px')
+    widget = Widget(viewer, src, width='99%', height='600px')
 
     state, ctrl = server.state, server.controller
     ctrl.view_update = widget.viewer.update
