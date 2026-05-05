@@ -65,9 +65,19 @@ Issues = 'https://github.com/pyvista/trame-pyvista/issues'
 Repository = 'https://github.com/pyvista/trame-pyvista'
 
 # Register the trame jupyter backends so PyVista discovers them via entry
-# points. Each name maps to a callable matching the
-# ``handle_plotter(plotter, **kwargs)`` contract.
+# points. PyVista 0.48's entry-point loader skips names that collide with
+# its built-in backends (``trame/server/client/html``); loading those
+# would never trigger this package's import. The ``trame-pyvista`` alias
+# is non-colliding, so PyVista imports ``trame_pyvista`` during entry-point
+# discovery — which runs ``trame_pyvista/__init__.py`` and registers the
+# four built-in names with ``override=True``.
+#
+# The colliding entries are kept for the future PyVista release that
+# drops its bundled ``pyvista.trame`` shim and stops skipping these
+# names; at that point the alias will become redundant but remains
+# harmless.
 [project.entry-points.'pyvista.jupyter_backends']
+trame-pyvista = 'trame_pyvista.jupyter:show_trame'
 trame = 'trame_pyvista.jupyter:show_trame'
 server = 'trame_pyvista.jupyter:show_trame'
 client = 'trame_pyvista.jupyter:show_trame'

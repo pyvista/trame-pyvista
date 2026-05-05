@@ -21,3 +21,4 @@ trame_pyvista/_version.py
 *.html
 scene-export.vtksz
 uv.lock
+.ipynb_checkpoints
