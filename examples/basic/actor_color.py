@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import pyvista as pv
+from pyvista.plotting.colors import hexcolors
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
-from pyvista.plotting.colors import hexcolors
 from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
@@ -37,7 +37,7 @@ actor = pl.add_mesh(mesh, color='seagreen')
 
 
 @state.change('color')
-def color(color='seagreen', **kwargs):  # noqa: ARG001
+def color(color='seagreen', **kwargs):
     actor.prop.color = color
     ctrl.view_update()
 
@@ -64,13 +64,15 @@ with SinglePageLayout(server) as layout:
             style='max-width: 250px',
         )
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
-        ):
-            # Use PyVista UI template for Plotters
-            view = plotter_ui(pl, default_server_rendering=False)
-            ctrl.view_update = view.update
+        ),
+    ):
+        # Use PyVista UI template for Plotters
+        view = plotter_ui(pl, default_server_rendering=False)
+        ctrl.view_update = view.update
 
 server.start()

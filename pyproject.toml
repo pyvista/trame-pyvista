@@ -14,7 +14,6 @@ keywords = ['vtk', 'trame', 'pyvista', 'jupyter', 'visualization']
 classifiers = [
   'Development Status :: 4 - Beta',
   'Intended Audience :: Science/Research',
-  'License :: OSI Approved :: MIT License',
   'Operating System :: MacOS',
   'Operating System :: POSIX :: Linux',
   'Operating System :: Microsoft :: Windows',
@@ -132,9 +131,10 @@ extend-select = [
   'YTT',
 ]
 ignore = [
-  'D107',  # Missing docstring in __init__
-  'D203',  # one-blank-line-before-class
-  'D213',  # multi-line-summary-second-line
+  'D107',   # Missing docstring in __init__
+  'D203',   # one-blank-line-before-class
+  'D213',   # multi-line-summary-second-line
+  'SIM117', # Trame UI builders rely on nested `with` blocks for layout
 ]
 
 [tool.ruff.lint.isort]
@@ -146,7 +146,9 @@ required-imports = ['from __future__ import annotations']
 [tool.ruff.lint.per-file-ignores]
 '__init__.py' = ['E402', 'F401', 'PLC0414']
 'examples/**' = ['D', 'E501', 'INP001', 'T20']
-'tests/**' = ['D', 'INP001', 'S101', 'T20']
+'tests/**' = ['B018', 'D', 'INP001', 'S101', 'T20']
+'trame_pyvista/ui/**' = ['D101', 'D102', 'D103', 'E501']
+'trame_pyvista/jupyter.py' = ['B904']
 
 [tool.ruff.lint.pydocstyle]
 convention = 'numpy'

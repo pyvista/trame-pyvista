@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import pyvista as pv
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
 from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
@@ -36,7 +36,7 @@ pl.add_mesh(source, color='seagreen')
 
 
 @state.change('resolution')
-def update_contour(resolution, **kwargs):  # noqa: ARG001
+def update_contour(resolution, **kwargs):
     source.resolution = int(resolution)
     ctrl.view_update()
 
@@ -69,13 +69,15 @@ with SinglePageLayout(server) as layout:
             active=('trame__busy',),
         )
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
-        ):
-            # Use PyVista UI template for Plotters
-            view = plotter_ui(pl)
-            ctrl.view_update = view.update
+        ),
+    ):
+        # Use PyVista UI template for Plotters
+        view = plotter_ui(pl)
+        ctrl.view_update = view.update
 
 server.start()

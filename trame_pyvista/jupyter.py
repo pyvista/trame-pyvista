@@ -9,12 +9,11 @@ from typing import TYPE_CHECKING
 from typing import Concatenate
 from typing import Literal
 
+from pyvista._warn_external import warn_external
 from trame.widgets import html as html_widgets
 from trame.widgets import vtk as vtk_widgets
 from trame.widgets import vuetify as vuetify2_widgets
 from trame.widgets import vuetify3 as vuetify3_widgets
-
-from pyvista._warn_external import warn_external
 
 try:
     from ipywidgets.widgets import HTML
@@ -23,6 +22,7 @@ except ImportError:
 
 
 import pyvista as pv
+
 from trame_pyvista.ui import UI_TITLE
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.views import CLOSED_PLOTTER_ERROR
@@ -32,9 +32,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from IPython.display import IFrame
-
     from pyvista.jupyter import JupyterBackendOptions
     from pyvista.plotting.plotter import Plotter
+
     from trame_pyvista.ui.vuetify2 import Viewer
 
 SERVER_DOWN_MESSAGE = """Trame server has not launched.
@@ -423,7 +423,7 @@ def show_trame(
     )
 
     if jupyter_extension_enabled:  # pragma: no cover
-        from trame_client.ui.core import iframe_url_builder_jupyter_extension  # noqa: PLC0415
+        from trame_client.ui.core import iframe_url_builder_jupyter_extension
 
         iframe_attrs = iframe_url_builder_jupyter_extension(viewer.layout)
         src = iframe_attrs['src']
@@ -468,7 +468,7 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
 
     """
     try:
-        import nest_asyncio2  # noqa: PLC0415
+        import nest_asyncio2
     except ImportError:
         msg = (
             'Please install `nest_asyncio2` to automagically launch the trame server '

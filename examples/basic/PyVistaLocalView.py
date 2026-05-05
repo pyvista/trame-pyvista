@@ -6,12 +6,12 @@ with client-side rendering.
 
 from __future__ import annotations
 
+import pyvista as pv
+from pyvista import examples
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
-from pyvista import examples
 from trame_pyvista import PyVistaLocalView
 
 server = get_server(client_type='vue3')
@@ -39,14 +39,16 @@ with SinglePageLayout(server) as layout:
     with layout.toolbar:
         vuetify3.VSpacer()
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
-        ):
-            view = PyVistaLocalView(pl)
-            ctrl.view_update = view.update
-            ctrl.view_reset_camera = view.reset_camera
+        ),
+    ):
+        view = PyVistaLocalView(pl)
+        ctrl.view_update = view.update
+        ctrl.view_reset_camera = view.reset_camera
 
     # hide footer
     layout.footer.hide()

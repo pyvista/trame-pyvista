@@ -7,12 +7,12 @@ This example demonstrates how to use ``plotter_ui`` to add a PyVista
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+import pyvista as pv
+from pyvista import examples
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
-from pyvista import examples
 from trame_pyvista.ui import plotter_ui
 
 pv.OFF_SCREEN = True
@@ -31,7 +31,7 @@ actor = pl.add_mesh(mesh, cmap='viridis')
 
 
 @state.change('cmap')
-def update_cmap(cmap='viridis', **kwargs):  # noqa: ARG001
+def update_cmap(cmap='viridis', **kwargs):
     actor.mapper.lookup_table.cmap = cmap
     ctrl.view_update()
 

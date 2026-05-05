@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import pyvista as pv
+from pyvista import examples
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
-from pyvista import examples
 from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
@@ -38,7 +38,7 @@ pl.view_xy()
 
 
 @state.change('scalars')
-def set_scalars(scalars=mesh.active_scalars_name, **kwargs):  # noqa: ARG001
+def set_scalars(scalars=mesh.active_scalars_name, **kwargs):
     old_title = next(iter(pl.scalar_bars.keys()))
     mesh.set_active_scalars(scalars)
     actor.mapper.array_name = scalars
@@ -48,7 +48,7 @@ def set_scalars(scalars=mesh.active_scalars_name, **kwargs):  # noqa: ARG001
 
 
 @state.change('log_scale')
-def set_log_scale(*, log_scale=False, **kwargs):  # noqa: ARG001
+def set_log_scale(*, log_scale=False, **kwargs):
     actor.mapper.lookup_table.log_scale = log_scale
     ctrl.view_update()
 
@@ -83,13 +83,15 @@ with SinglePageLayout(server) as layout:
             style='max-width: 250px',
         )
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
-        ):
-            # Use PyVista UI template for Plotters
-            view = plotter_ui(pl, default_server_rendering=True)
-            ctrl.view_update = view.update
+        ),
+    ):
+        # Use PyVista UI template for Plotters
+        view = plotter_ui(pl, default_server_rendering=True)
+        ctrl.view_update = view.update
 
 server.start()

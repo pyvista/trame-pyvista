@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import pyvista as pv
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
 from trame_pyvista.ui import plotter_ui
 
 pv.OFF_SCREEN = True

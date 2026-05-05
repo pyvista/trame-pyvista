@@ -26,12 +26,14 @@ def is_path_relative_to(path, other):
 
 
 class OfflineViewerDirective(Directive):
+    """Embed an exported ``.vtksz`` scene in HTML output via an iframe."""
+
     required_arguments = 1
     optional_arguments = 0
     final_argument_whitespace = True
     has_content = True
 
-    def run(self):  # pragma: no cover
+    def run(self):  # pragma: no cover  # noqa: D102
         source_dir = Path(self.state.document.settings.env.app.srcdir)
         output_dir = Path(self.state.document.settings.env.app.outdir)
         # _build directory
@@ -76,7 +78,7 @@ class OfflineViewerDirective(Directive):
         if source_file != dest_file:
             try:
                 shutil.copy(source_file, dest_file)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(f'Failed to copy file from {source_file} to {dest_file}: {e}')
 
         # Compute the relative path of the current source to the source directory,
@@ -98,6 +100,7 @@ class OfflineViewerDirective(Directive):
 
 
 def setup(app):
+    """Register the ``offlineviewer`` directive with Sphinx."""
     app.add_directive('offlineviewer', OfflineViewerDirective)
 
     return {

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import pyvista as pv
+from pyvista import examples
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 from vtkmodules.vtkFiltersCore import vtkContourFilter
 
-import pyvista as pv
-from pyvista import examples
 from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
@@ -61,7 +61,7 @@ actor = pl.add_mesh(contour, cmap='viridis', clim=data_range)
 
 
 @state.change('contour_value')
-def update_contour(contour_value, **kwargs):  # noqa: ARG001
+def update_contour(contour_value, **kwargs):
     contour.SetValue(0, contour_value)
     ctrl.view_update_image()
 
@@ -95,14 +95,16 @@ with SinglePageLayout(server) as layout:
             active=('trame__busy',),
         )
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
-        ):
-            # Use PyVista UI template for Plotters
-            view = plotter_ui(pl, namespace='demo')
-            ctrl.view_update = view.update
-            ctrl.view_update_image = view.update_image
+        ),
+    ):
+        # Use PyVista UI template for Plotters
+        view = plotter_ui(pl, namespace='demo')
+        ctrl.view_update = view.update
+        ctrl.view_update_image = view.update_image
 
 server.start()

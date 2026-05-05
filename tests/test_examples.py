@@ -1,34 +1,28 @@
+"""Smoke-test every script in ``examples/`` by running it briefly with ``--serve``."""
+
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
-THIS_PATH = Path(__file__).parent.absolute()
-EXAMPLES_DIR = Path(__file__).parent.parent.absolute()
+EXAMPLES_DIR = Path(__file__).parent.parent / 'examples'
 
 
-def collect_example_files():
-    test_files = []
-    for dirpath, _, filenames in os.walk(EXAMPLES_DIR):
-        if THIS_PATH.match(dirpath) or dirpath.endswith('__pycache__'):
-            continue
-        for filename in filenames:
-            full_path = Path(dirpath) / filename
-            if not filename.endswith('.py'):
-                continue
-            # Use relative path and cast to str for better repr in pytest output
-            rel_path = full_path.relative_to(EXAMPLES_DIR)
-            test_files.append(str(rel_path))
-    return test_files
+def _collect() -> list[str]:
+    return sorted(
+        str(path.relative_to(EXAMPLES_DIR))
+        for path in EXAMPLES_DIR.rglob('*.py')
+        if '__pycache__' not in path.parts
+    )
 
 
-@pytest.mark.parametrize('test_file', collect_example_files())
-def test_serve(test_file):
-    returncode = subprocess.run(
-        ['python', EXAMPLES_DIR / test_file, '--serve', '--timeout', '1', '--port', '0'],
+@pytest.mark.parametrize('script', _collect())
+def test_serve(script: str) -> None:
+    result = subprocess.run(
+        [sys.executable, str(EXAMPLES_DIR / script), '--serve', '--timeout', '1', '--port', '0'],
         check=False,
-    ).returncode
-    assert returncode == 0
+    )
+    assert result.returncode == 0

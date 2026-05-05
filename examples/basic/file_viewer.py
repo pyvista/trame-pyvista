@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 
+import pyvista as pv
 from trame.app import get_server
 from trame.app.file_upload import ClientFile
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
 from trame_pyvista.ui import plotter_ui
 
 # -----------------------------------------------------------------------------
@@ -31,7 +31,7 @@ pl = pv.Plotter()
 
 
 @server.state.change('file_exchange')
-def handle(file_exchange, **kwargs):  # noqa: ARG001
+def handle(file_exchange, **kwargs):
     # Vuetify3 File Input always returns list
     if file_exchange and len(file_exchange) > 0:
         file = ClientFile(file_exchange[0])
@@ -76,14 +76,16 @@ with SinglePageLayout(server) as layout:
             active=('trame__busy',),
         )
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
             style='position: relative;',
-        ):
-            # Use PyVista UI template for Plotters
-            view = plotter_ui(pl)
-            ctrl.view_update = view.update
+        ),
+    ):
+        # Use PyVista UI template for Plotters
+        view = plotter_ui(pl)
+        ctrl.view_update = view.update
 
 server.start()

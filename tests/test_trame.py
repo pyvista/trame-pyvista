@@ -5,7 +5,6 @@ from pathlib import Path
 from IPython.display import IFrame
 import numpy as np
 import pytest
-
 import pyvista as pv
 from pyvista import examples
 
@@ -131,7 +130,7 @@ def test_trame(client_type):
     viewer = get_viewer(pl)
 
     for cp in ['xy', 'xz', 'yz', 'isometric']:
-        exec(f'viewer.view_{cp}()')  # noqa: S102
+        exec(f'viewer.view_{cp}()')
         cpos = list(pl.camera_position)
         pl.camera_position = cp[:3]
         assert cpos == pl.camera_position
@@ -235,12 +234,12 @@ def test_trame_custom_menu_items(client_type):
     ctrl.view_update = widget.viewer.update
 
     @state.change('resolution')
-    def update_resolution(resolution, **kwargs):  # noqa: ARG001
+    def update_resolution(resolution, **kwargs):
         algo.resolution = resolution
         ctrl.view_update()
 
     @state.change('visibility')
-    def set_visibility(visibility, **kwargs):  # noqa: ARG001
+    def set_visibility(visibility, **kwargs):
         toggle = {'Hide': 0, 'Show': 1}
         mesh_actor.visibility = toggle[visibility]
         ctrl.view_update()
@@ -331,14 +330,14 @@ def test_trame_jupyter_custom_size():
 
 
 def test_trame_jupyter_custom_handler():
-    def handler(viewer, src, **kwargs):  # noqa: ARG001
+    def handler(viewer, src, **kwargs):
         return IFrame(src, '75%', '500px')
 
     pl = pv.Plotter(notebook=True)
     _ = pl.add_mesh(pv.Cone())
     iframe = pl.show(
         jupyter_backend='trame',
-        jupyter_kwargs=dict(handler=handler),
+        jupyter_kwargs={'handler': handler},
         return_viewer=True,
     )
     assert isinstance(iframe, IFrame)

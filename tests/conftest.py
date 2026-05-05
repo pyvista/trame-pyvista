@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import pyvista as pv
 import pytest
+import pyvista as pv
 
 pv.OFF_SCREEN = True
 
@@ -17,9 +17,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if config.getoption('--playwright'):
         return
     skip = pytest.mark.skip(reason='Playwright tests disabled (use --playwright).')

@@ -302,27 +302,29 @@ class Viewer(BaseViewer):
             server.state[self.SERVER_RENDERING] = default_server_rendering
             if add_menu:
                 server.state[self.SHOW_UI] = not collapse_menu
-                with vuetify.VCard(
-                    style='position: absolute; top: 20px; left: 20px; z-index: 1; height: 36px;',
-                    classes=(f"{{ 'rounded-circle': !{self.SHOW_UI} }}",),
-                ) as self.menu:
-                    with vuetify.VRow(classes='pa-0 ma-0'):
-                        button(
-                            click=f'{self.SHOW_UI}=!{self.SHOW_UI}',
-                            icon='mdi-dots-vertical',
-                            tooltip=f"{{{{ {self.SHOW_UI} ? 'Hide' : 'Show' }}}} menu",
-                        )
-                        self.ui_controls(
-                            mode=mode,
-                            default_server_rendering=default_server_rendering,
+                with (
+                    vuetify.VCard(
+                        style='position: absolute; top: 20px; left: 20px; z-index: 1; height: 36px;',
+                        classes=(f"{{ 'rounded-circle': !{self.SHOW_UI} }}",),
+                    ) as self.menu,
+                    vuetify.VRow(classes='pa-0 ma-0'),
+                ):
+                    button(
+                        click=f'{self.SHOW_UI}=!{self.SHOW_UI}',
+                        icon='mdi-dots-vertical',
+                        tooltip=f"{{{{ {self.SHOW_UI} ? 'Hide' : 'Show' }}}} menu",
+                    )
+                    self.ui_controls(
+                        mode=mode,
+                        default_server_rendering=default_server_rendering,
+                        v_show=(f'{self.SHOW_UI}',),
+                    )
+                    if callable(add_menu_items):
+                        with vuetify.VRow(
                             v_show=(f'{self.SHOW_UI}',),
-                        )
-                        if callable(add_menu_items):
-                            with vuetify.VRow(
-                                v_show=(f'{self.SHOW_UI}',),
-                                classes='pa-0 ma-0 align-center',
-                            ):
-                                add_menu_items()
+                            classes='pa-0 ma-0 align-center',
+                        ):
+                            add_menu_items()
             if mode == 'trame':
                 view = PyVistaRemoteLocalView(
                     self.plotter,

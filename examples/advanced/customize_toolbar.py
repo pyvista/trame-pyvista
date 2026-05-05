@@ -9,9 +9,12 @@ This example shows how to add custom tools using the
 `jupyter_kwargs` option with :meth:`~pyvista.Plotter.show`.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 import pyvista as pv
+
 from trame_pyvista.ui.vuetify3 import button
 from trame_pyvista.ui.vuetify3 import divider
 from trame_pyvista.ui.vuetify3 import select
@@ -92,7 +95,7 @@ pl = pv.Plotter(notebook=True)
 algo = pv.ConeSource()
 mesh_actor = pl.add_mesh(algo)
 
-widget = pl.show(jupyter_kwargs=dict(add_menu_items=custom_tools), return_viewer=True)
+widget = pl.show(jupyter_kwargs={'add_menu_items': custom_tools}, return_viewer=True)
 
 # %%
 # To interact with ``trame``'s server we need to get the server's state.
@@ -133,7 +136,7 @@ ctrl.view_update = widget.viewer.update
 
 # trame callbacks
 @state.change('play')
-async def _play(play, **kwargs):  # noqa: ARG001
+async def _play(play, **kwargs):
     while state.play:
         state.resolution += 1
         state.flush()
@@ -143,16 +146,16 @@ async def _play(play, **kwargs):  # noqa: ARG001
 
 
 @state.change('resolution')
-def update_resolution(resolution, **kwargs):  # noqa: ARG001
+def update_resolution(resolution, **kwargs):
     algo.resolution = resolution
     ctrl.view_update()
 
 
 @state.change('visibility')
-def set_visibility(visibility, **kwargs):  # noqa: ARG001
+def set_visibility(visibility, **kwargs):
     toggle = {'Hide': 0, 'Show': 1}
     mesh_actor.visibility = toggle[visibility]
     ctrl.view_update()
 
 
-widget
+widget  # noqa: B018

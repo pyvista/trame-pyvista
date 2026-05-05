@@ -7,12 +7,12 @@ with server-side rendering.
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+import pyvista as pv
+from pyvista import examples
 from trame.app import get_server
 from trame.ui.vuetify3 import SinglePageLayout
 from trame.widgets import vuetify3
 
-import pyvista as pv
-from pyvista import examples
 from trame_pyvista import PyVistaRemoteView
 
 pv.OFF_SCREEN = True
@@ -31,7 +31,7 @@ actor = pl.add_mesh(mesh, cmap='viridis')
 
 
 @state.change('cmap')
-def update_cmap(cmap='viridis', **kwargs):  # noqa: ARG001
+def update_cmap(cmap='viridis', **kwargs):
     actor.mapper.lookup_table.cmap = cmap
     ctrl.view_update()
 
@@ -57,14 +57,16 @@ with SinglePageLayout(server) as layout:
             style='max-width: 250px',
         )
 
-    with layout.content:
-        with vuetify3.VContainer(
+    with (
+        layout.content,
+        vuetify3.VContainer(
             fluid=True,
             classes='pa-0 fill-height',
-        ):
-            view = PyVistaRemoteView(pl)
-            ctrl.view_update = view.update
-            ctrl.view_reset_camera = view.reset_camera
+        ),
+    ):
+        view = PyVistaRemoteView(pl)
+        ctrl.view_update = view.update
+        ctrl.view_reset_camera = view.reset_camera
 
     # hide footer
     layout.footer.hide()

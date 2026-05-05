@@ -1,13 +1,13 @@
 # trame-pyvista
 
-[Trame][trame] interface for [PyVista][pyvista]: web-based 3D viewers,
-Jupyter backends, scene exporters, and a Sphinx directive for embedded
-interactive plots.
+[Trame][trame] interface for [PyVista][pyvista]. Provides web-based 3D
+viewers, Jupyter backends, scene exporters, and a Sphinx directive for
+embedding interactive plots in docs.
 
 This package was extracted from the `pyvista.trame` subpackage so the
-trame stack can evolve on its own release cadence and dependency
-window. PyVista re-exposes installed functionality through entry
-points; user code mostly does not need to change.
+trame stack can release on its own cadence. PyVista discovers installed
+functionality through entry points, so existing user code keeps working
+once `trame-pyvista` is installed.
 
 [trame]: https://kitware.github.io/trame/
 [pyvista]: https://pyvista.org
@@ -26,13 +26,13 @@ pip install "trame-pyvista[jupyter]"
 
 ## What you get
 
-- **Jupyter backends** — `trame`, `server`, `client`, `html`. Registered
+- **Jupyter backends**: `trame`, `server`, `client`, `html`. Registered
   with PyVista via the `pyvista.jupyter_backends` entry-point group, so
   `pv.set_jupyter_backend('trame')` works once `trame-pyvista` is
   installed.
-- **Plotter views** — `PyVistaLocalView`, `PyVistaRemoteView`,
+- **Plotter views**: `PyVistaLocalView`, `PyVistaRemoteView`,
   `PyVistaRemoteLocalView` for embedding in trame apps.
-- **`plotter.trame` namespace** — registered as a PyVista plotter
+- **`plotter.trame` namespace**: registered as a PyVista plotter
   component so exporters live under the trame namespace:
 
   ```python
@@ -44,7 +44,7 @@ pip install "trame-pyvista[jupyter]"
   pl.trame.export_html('scene.html')
   ```
 
-- **Sphinx directive** — `trame_pyvista.sphinx_ext` provides the
+- **Sphinx directive**: `trame_pyvista.sphinx_ext` provides the
   `offlineviewer` directive used by PyVista docs to embed exported
   `.vtksz` scenes. Add to `conf.py`:
 
@@ -92,4 +92,4 @@ just build
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

@@ -10,9 +10,8 @@ from __future__ import annotations
 import io
 from typing import TYPE_CHECKING
 
-from trame.app import get_server
-
 import pyvista as pv
+from trame.app import get_server
 
 if TYPE_CHECKING:
     from trame_client.ui.core import AbstractLayout
@@ -67,7 +66,7 @@ class BaseViewer:
         """Get a set of all associate trame views for this viewer."""
         return self._html_views
 
-    def update(self, **kwargs):  # noqa: ARG002
+    def update(self, **kwargs):
         """Update all associated views.
 
         Parameters
@@ -79,7 +78,7 @@ class BaseViewer:
         for view in self._html_views:
             view.update()
 
-    def push_camera(self, **kwargs):  # noqa: ARG002
+    def push_camera(self, **kwargs):
         """Push camera to all associated views.
 
         Parameters
@@ -91,7 +90,7 @@ class BaseViewer:
         for view in self._html_views:
             view.push_camera()
 
-    def reset_camera(self, **kwargs):  # noqa: ARG002
+    def reset_camera(self, **kwargs):
         """Reset camera for all associated views.
 
         Parameters
@@ -103,7 +102,7 @@ class BaseViewer:
         for view in self._html_views:
             view.reset_camera()
 
-    def update_image(self, **kwargs):  # noqa: ARG002
+    def update_image(self, **kwargs):
         """Update image for all associated views.
 
         Parameters
@@ -115,7 +114,7 @@ class BaseViewer:
         for view in self._html_views:
             view.update_image()
 
-    def update_camera(self, **kwargs):  # noqa: ARG002
+    def update_camera(self, **kwargs):
         """Update image and camera for all associated views.
 
         Parameters
