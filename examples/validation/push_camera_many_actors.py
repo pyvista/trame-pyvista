@@ -23,8 +23,8 @@ state, ctrl = server.state, server.controller
 state.trame__title = 'Camera Sync - Many Actors'
 
 pl = pv.Plotter()
-for i in range(50):
-    for j in range(50):
+for i in range(20):
+    for j in range(20):
         pl.add_mesh(pv.Cone(center=(i, j, 0)))
 pl.reset_camera()
 
