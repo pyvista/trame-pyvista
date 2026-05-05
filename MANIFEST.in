@@ -1,3 +1,0 @@
-include README.md
-include LICENSE
-include trame_pyvista/py.typed
