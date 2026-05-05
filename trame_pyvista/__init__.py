@@ -11,6 +11,8 @@ try:
 except ImportError:  # pragma: no cover
     __version__ = '0.0.0'
 
+from pyvista import register_plotter_component
+
 from trame_pyvista.components import TrameComponent
 from trame_pyvista.jupyter import elegantly_launch
 from trame_pyvista.jupyter import launch_server
@@ -21,20 +23,7 @@ from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
 
-
-def _register_plotter_component() -> None:
-    """Attach the ``trame`` namespace to ``pyvista.BasePlotter``.
-
-    Tolerates older PyVista that lacks ``register_plotter_component``.
-    """
-    try:
-        from pyvista import register_plotter_component
-    except ImportError:
-        return
-    register_plotter_component('trame', override=True)(TrameComponent)
-
-
-_register_plotter_component()
+register_plotter_component('trame', override=True)(TrameComponent)
 
 
 __all__ = [

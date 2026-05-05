@@ -7,35 +7,29 @@ import numpy as np
 import pytest
 import pyvista as pv
 from pyvista import examples
+from trame.app import get_server
 
-has_trame = True
-try:
-    from trame.app import get_server
-
-    from trame_pyvista.jupyter import EmbeddableWidget
-    from trame_pyvista.jupyter import Widget
-    from trame_pyvista.jupyter import build_url
-    from trame_pyvista.jupyter import elegantly_launch
-    from trame_pyvista.ui import base_viewer
-    from trame_pyvista.ui import get_viewer
-    from trame_pyvista.ui import plotter_ui
-    from trame_pyvista.ui.vuetify2 import divider as vue2_divider
-    from trame_pyvista.ui.vuetify2 import select as vue2_select
-    from trame_pyvista.ui.vuetify2 import slider as vue2_slider
-    from trame_pyvista.ui.vuetify2 import text_field as vue2_text_field
-    from trame_pyvista.ui.vuetify3 import divider as vue3_divider
-    from trame_pyvista.ui.vuetify3 import select as vue3_select
-    from trame_pyvista.ui.vuetify3 import slider as vue3_slider
-    from trame_pyvista.ui.vuetify3 import text_field as vue3_text_field
-    from trame_pyvista.widgets import PyVistaLocalView
-    from trame_pyvista.widgets import PyVistaRemoteLocalView
-    from trame_pyvista.widgets import PyVistaRemoteView
-    from trame_pyvista.widgets import _BasePyVistaView
-except ImportError:
-    has_trame = False
+from trame_pyvista.jupyter import EmbeddableWidget
+from trame_pyvista.jupyter import Widget
+from trame_pyvista.jupyter import build_url
+from trame_pyvista.jupyter import elegantly_launch
+from trame_pyvista.ui import base_viewer
+from trame_pyvista.ui import get_viewer
+from trame_pyvista.ui import plotter_ui
+from trame_pyvista.ui.vuetify2 import divider as vue2_divider
+from trame_pyvista.ui.vuetify2 import select as vue2_select
+from trame_pyvista.ui.vuetify2 import slider as vue2_slider
+from trame_pyvista.ui.vuetify2 import text_field as vue2_text_field
+from trame_pyvista.ui.vuetify3 import divider as vue3_divider
+from trame_pyvista.ui.vuetify3 import select as vue3_select
+from trame_pyvista.ui.vuetify3 import slider as vue3_slider
+from trame_pyvista.ui.vuetify3 import text_field as vue3_text_field
+from trame_pyvista.widgets import PyVistaLocalView
+from trame_pyvista.widgets import PyVistaRemoteLocalView
+from trame_pyvista.widgets import PyVistaRemoteView
+from trame_pyvista.widgets import _BasePyVistaView
 
 pytestmark = [
-    pytest.mark.skipif(not has_trame, reason='Requires trame'),
     pytest.mark.filterwarnings(
         r'ignore:It is recommended to use web\.AppKey instances for '
         r'keys:aiohttp.web_exceptions.NotAppKeyWarning'
