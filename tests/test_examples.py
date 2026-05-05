@@ -1,7 +1,8 @@
-"""Smoke-test every script in ``examples/`` by running it briefly with ``--serve``."""
+"""Smoke-test every script in ``examples/`` by booting trame headless briefly."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -21,8 +22,19 @@ def _collect() -> list[str]:
 
 @pytest.mark.parametrize('script', _collect())
 def test_serve(script: str) -> None:
+    env = {**os.environ, 'PYVISTA_OFF_SCREEN': 'true'}
     result = subprocess.run(
-        [sys.executable, str(EXAMPLES_DIR / script), '--serve', '--timeout', '1', '--port', '0'],
+        [
+            sys.executable,
+            str(EXAMPLES_DIR / script),
+            '--server',  # trame: do not open browser
+            '--timeout',
+            '1',
+            '--port',
+            '0',
+        ],
         check=False,
+        env=env,
+        timeout=30,
     )
     assert result.returncode == 0

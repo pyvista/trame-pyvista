@@ -25,8 +25,8 @@ import pyvista as pv
 
 from trame_pyvista.ui import UI_TITLE
 from trame_pyvista.ui import get_viewer
-from trame_pyvista.views import CLOSED_PLOTTER_ERROR
-from trame_pyvista.views import get_server
+from trame_pyvista.widgets import CLOSED_PLOTTER_ERROR
+from trame_pyvista.widgets import get_server
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -175,7 +175,7 @@ def launch_server(server=None, port=None, host=None, wslink_backend=None, **kwar
         is used.
 
     **kwargs : dict, optional
-        Any additional keyword arguments to pass to ``trame_pyvista.views.get_server``.
+        Any additional keyword arguments to pass to ``trame_pyvista.widgets.get_server``.
 
     Returns
     -------

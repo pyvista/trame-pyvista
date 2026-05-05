@@ -17,9 +17,9 @@ from trame_pyvista.jupyter import launch_server
 from trame_pyvista.jupyter import show_trame
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.ui import plotter_ui
-from trame_pyvista.views import PyVistaLocalView
-from trame_pyvista.views import PyVistaRemoteLocalView
-from trame_pyvista.views import PyVistaRemoteView
+from trame_pyvista.widgets import PyVistaLocalView
+from trame_pyvista.widgets import PyVistaRemoteLocalView
+from trame_pyvista.widgets import PyVistaRemoteView
 
 
 def _register_plotter_component() -> None:

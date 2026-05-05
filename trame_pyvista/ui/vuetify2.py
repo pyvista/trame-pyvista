@@ -13,9 +13,9 @@ from trame.ui.vuetify2 import VAppLayout
 from trame.widgets import html
 from trame.widgets import vuetify
 
-from trame_pyvista.views import PyVistaLocalView
-from trame_pyvista.views import PyVistaRemoteLocalView
-from trame_pyvista.views import PyVistaRemoteView
+from trame_pyvista.widgets import PyVistaLocalView
+from trame_pyvista.widgets import PyVistaRemoteLocalView
+from trame_pyvista.widgets import PyVistaRemoteView
 
 from .base_viewer import BaseViewer
 

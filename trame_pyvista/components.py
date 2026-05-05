@@ -80,8 +80,8 @@ class TrameComponent:
 
         """
         from trame_pyvista.jupyter import elegantly_launch
-        from trame_pyvista.views import PyVistaLocalView
-        from trame_pyvista.views import get_server
+        from trame_pyvista.widgets import PyVistaLocalView
+        from trame_pyvista.widgets import get_server
 
         server = get_server(pv.global_theme.trame.jupyter_server_name)
         if not server.running:

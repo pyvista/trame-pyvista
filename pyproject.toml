@@ -72,7 +72,7 @@ trame = 'trame_pyvista.components'
 
 [tool.setuptools.packages.find]
 where = ['.']
-include = ['trame_pyvista*']
+include = ['trame_pyvista*', 'trame*']
 
 [tool.setuptools.package-data]
 trame_pyvista = ['py.typed']
@@ -131,9 +131,12 @@ combine-as-imports = true
 force-sort-within-sections = true
 force-single-line = true
 required-imports = ['from __future__ import annotations']
+known-first-party = ['trame_pyvista']
+known-third-party = ['trame']
 
 [tool.ruff.lint.per-file-ignores]
 '__init__.py' = ['E402', 'F401', 'PLC0414']
+'trame/widgets/__init__.py' = ['D104']
 'examples/**' = ['D', 'E501', 'INP001', 'T20']
 'tests/**' = ['B018', 'D', 'INP001', 'S101', 'T20']
 'trame_pyvista/ui/**' = ['D101', 'D102', 'D103', 'E501']

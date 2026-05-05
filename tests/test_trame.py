@@ -27,10 +27,10 @@ try:
     from trame_pyvista.ui.vuetify3 import select as vue3_select
     from trame_pyvista.ui.vuetify3 import slider as vue3_slider
     from trame_pyvista.ui.vuetify3 import text_field as vue3_text_field
-    from trame_pyvista.views import PyVistaLocalView
-    from trame_pyvista.views import PyVistaRemoteLocalView
-    from trame_pyvista.views import PyVistaRemoteView
-    from trame_pyvista.views import _BasePyVistaView
+    from trame_pyvista.widgets import PyVistaLocalView
+    from trame_pyvista.widgets import PyVistaRemoteLocalView
+    from trame_pyvista.widgets import PyVistaRemoteView
+    from trame_pyvista.widgets import _BasePyVistaView
 except ImportError:
     has_trame = False
 
