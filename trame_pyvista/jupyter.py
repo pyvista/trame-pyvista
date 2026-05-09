@@ -134,7 +134,7 @@ class EmbeddableWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
         if HTML is object:
             msg = 'Please install `ipywidgets`.'
             raise ImportError(msg)
-        scene = plotter.export_html(filename=None)
+        scene = plotter.trame.export_html(filename=None)
         src = scene.getvalue().replace('"', '&quot;')
         # eventually we could maybe expose this, but for now make sure we're at least
         # consistent with matplotlib's color (light gray)

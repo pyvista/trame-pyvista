@@ -87,7 +87,7 @@ class _BasePyVistaView:
             write_html(data, content)
             content.seek(0)
         else:
-            content = self._plotter().export_html(filename=None)  # type: ignore[union-attr]
+            content = self._plotter().trame.export_html(filename=None)  # type: ignore[union-attr]
         return io.BytesIO(content.read().encode('utf8')).read()
 
 

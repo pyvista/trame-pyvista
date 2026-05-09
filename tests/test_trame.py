@@ -355,7 +355,7 @@ def test_trame_export_html(tmpdir):
     filename = str(tmpdir.join('tmp.html'))
     pl = pv.Plotter()
     pl.add_mesh(pv.Wavelet())
-    pl.export_html(filename)
+    pl.trame.export_html(filename)
     assert Path(filename).is_file()
 
 
@@ -365,7 +365,7 @@ def test_export_single(tmpdir):
     # Create the scene
     pl = pv.Plotter()
     pl.add_mesh(data)
-    pl.export_vtksz(filename)
+    pl.trame.export_vtksz(filename)
     # Now make sure the file is there
     assert Path(f'{filename}').is_file()
 
@@ -382,7 +382,7 @@ def test_export_multi(tmpdir):
     # Create the scene
     pl = pv.Plotter()
     pl.add_mesh(multi)
-    pl.export_vtksz(filename)
+    pl.trame.export_vtksz(filename)
     # Now make sure the file is there
     assert Path(f'{filename}').is_file()
 
@@ -394,7 +394,7 @@ def test_export_texture(tmpdir):
     # Create the scene
     pl = pv.Plotter()
     pl.add_mesh(data, texture=texture)
-    pl.export_vtksz(filename)
+    pl.trame.export_vtksz(filename)
     # Now make sure the file is there
     assert Path(f'{filename}').is_file()
 
@@ -405,7 +405,7 @@ def test_export_verts(tmpdir):
     # Create the scene
     pl = pv.Plotter()
     pl.add_mesh(data)
-    pl.export_vtksz(filename)
+    pl.trame.export_vtksz(filename)
     # Now make sure the file is there
     assert Path(f'{filename}').is_file()
 
@@ -416,7 +416,7 @@ def test_export_color(tmpdir):
     # Create the scene
     pl = pv.Plotter()
     pl.add_mesh(data, color='yellow')
-    pl.export_vtksz(filename)
+    pl.trame.export_vtksz(filename)
     # Now make sure the file is there
     assert Path(f'{filename}').is_file()
 
