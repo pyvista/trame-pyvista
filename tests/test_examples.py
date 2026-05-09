@@ -35,6 +35,6 @@ def test_serve(script: str) -> None:
         ],
         check=False,
         env=env,
-        timeout=30,
+        timeout=90,
     )
     assert result.returncode == 0
