@@ -3,7 +3,9 @@ updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: monthly
+      # Weekly so trame-vtk / trame-* regressions surface in a bump PR
+      # shortly after a release lands, instead of waiting up to a month.
+      interval: weekly
     labels: [maintenance, dependencies]
     open-pull-requests-limit: 20
   - package-ecosystem: github-actions
