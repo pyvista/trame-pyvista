@@ -135,7 +135,7 @@ class EmbeddableWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
             msg = 'Please install `ipywidgets`.'
             raise ImportError(msg)
         scene = plotter.trame.export_html(filename=None)
-        src = scene.getvalue().replace('"', '&quot;')
+        src = scene.getvalue().replace('&', '&amp;').replace('"', '&quot;')
         # eventually we could maybe expose this, but for now make sure we're at least
         # consistent with matplotlib's color (light gray)
         border = 'border: 1px solid rgb(221,221,221);'
