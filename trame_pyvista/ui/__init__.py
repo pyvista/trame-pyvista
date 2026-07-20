@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from pyvista._warn_external import warn_external
 from trame.app import get_server
 
-from .vuetify2 import Viewer as Vue2Viewer
 from .vuetify3 import Viewer as Vue3Viewer
 
 if TYPE_CHECKING:
@@ -65,7 +64,15 @@ def get_viewer(plotter, *, server=None, suppress_rendering=False, animate=False)
 
     if not server:
         server = get_server()
-    cls = Vue2Viewer if server.client_type == 'vue2' else Vue3Viewer
+    if server.client_type == 'vue2':
+        # Imported lazily because Vue2 support (``trame_vuetify.module.vue2``)
+        # was removed in trame-vuetify 3.2.3; importing it eagerly breaks the
+        # default Vue3 path.
+        from .vuetify2 import Viewer as Vue2Viewer
+
+        cls = Vue2Viewer
+    else:
+        cls = Vue3Viewer
     viewer = cls(
         plotter,
         suppress_rendering=suppress_rendering,

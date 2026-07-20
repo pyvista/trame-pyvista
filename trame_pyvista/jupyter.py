@@ -12,7 +12,6 @@ from typing import Literal
 from pyvista._warn_external import warn_external
 from trame.widgets import html as html_widgets
 from trame.widgets import vtk as vtk_widgets
-from trame.widgets import vuetify as vuetify2_widgets
 from trame.widgets import vuetify3 as vuetify3_widgets
 
 try:
@@ -203,6 +202,11 @@ def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **k
     vtk_widgets.initialize(server)
 
     if server.client_type == 'vue2':
+        # Imported lazily because Vue2 support (``trame_vuetify.module.vue2``)
+        # was removed in trame-vuetify 3.2.3; importing it eagerly breaks the
+        # default Vue3 path.
+        from trame.widgets import vuetify as vuetify2_widgets
+
         vuetify2_widgets.initialize(server)
     else:
         vuetify3_widgets.initialize(server)

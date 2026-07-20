@@ -16,10 +16,6 @@ from trame_pyvista.jupyter import elegantly_launch
 from trame_pyvista.ui import base_viewer
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.ui import plotter_ui
-from trame_pyvista.ui.vuetify2 import divider as vue2_divider
-from trame_pyvista.ui.vuetify2 import select as vue2_select
-from trame_pyvista.ui.vuetify2 import slider as vue2_slider
-from trame_pyvista.ui.vuetify2 import text_field as vue2_text_field
 from trame_pyvista.ui.vuetify3 import divider as vue3_divider
 from trame_pyvista.ui.vuetify3 import select as vue3_select
 from trame_pyvista.ui.vuetify3 import slider as vue3_slider
@@ -28,6 +24,29 @@ from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
 from trame_pyvista.widgets import _BasePyVistaView
+
+# Vue2 support (``trame_vuetify.module.vue2``) was removed in trame-vuetify
+# 3.2.3, so only import and exercise the Vue2 widgets when they are available.
+try:
+    from trame_pyvista.ui.vuetify2 import divider as vue2_divider
+    from trame_pyvista.ui.vuetify2 import select as vue2_select
+    from trame_pyvista.ui.vuetify2 import slider as vue2_slider
+    from trame_pyvista.ui.vuetify2 import text_field as vue2_text_field
+
+    HAS_VUE2 = True
+except ImportError:
+    vue2_divider = vue2_select = vue2_slider = vue2_text_field = None
+    HAS_VUE2 = False
+
+CLIENT_TYPES = [
+    pytest.param(
+        'vue2',
+        marks=pytest.mark.skipif(
+            not HAS_VUE2, reason='trame-vuetify has no Vue2 support (>= 3.2.3)'
+        ),
+    ),
+    'vue3',
+]
 
 pytestmark = [
     pytest.mark.filterwarnings(
@@ -74,7 +93,7 @@ def test_base_viewer_ui():
         viewer.ui()
 
 
-@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+@pytest.mark.parametrize('client_type', CLIENT_TYPES)
 @pytest.mark.filterwarnings(
     'ignore:Suppress rendering on the plotter is changed to .*:UserWarning'
 )
@@ -102,7 +121,7 @@ def test_trame_plotter_ui(client_type):
     assert isinstance(ui, _BasePyVistaView)
 
 
-@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+@pytest.mark.parametrize('client_type', CLIENT_TYPES)
 def test_trame(client_type):
     # give different names for servers so different instances are created
     name = f'{pv.global_theme.trame.jupyter_server_name}-{client_type}'
@@ -174,7 +193,7 @@ def test_trame(client_type):
     assert isinstance(viewer.screenshot(), memoryview)
 
 
-@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+@pytest.mark.parametrize('client_type', CLIENT_TYPES)
 def test_trame_custom_menu_items(client_type):
     # give different names for servers so different instances are created
     name = f'{pv.global_theme.trame.jupyter_server_name}-{client_type}'
