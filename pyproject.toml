@@ -25,6 +25,7 @@ classifiers = [
   'Topic :: Scientific/Engineering :: Visualization',
 ]
 dependencies = [
+  'packaging',
   'pyvista>=0.48',
   # Upper-pin all trame dependencies since these updates often include unintentional breaking changes
   'trame>=2.5.2,<3.13.3',

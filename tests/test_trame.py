@@ -442,7 +442,17 @@ def test_ipywidgets_raises(monkeypatch: pytest.MonkeyPatch):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
 
 
-@pytest.mark.parametrize('trame_vtk_version', ['2.11.9', '2.11.14', '2.5.8'])
+@pytest.mark.parametrize(
+    'trame_vtk_version',
+    [
+        '2.11.9',
+        '2.11.14',
+        '2.5.8',
+        '2.11.9.dev0',
+        '2.11.9+g1234',
+        '2.11.15.dev0',  # dev pre-release of 2.11.15 itself still sorts below the release
+    ],
+)
 def test_check_trame_vtk_version_raises_for_vtk_9_7_with_old_trame_vtk(trame_vtk_version):
     match = re.escape(
         f'trame-vtk {trame_vtk_version} does not support VTK 9.7.0. '
@@ -452,9 +462,18 @@ def test_check_trame_vtk_version_raises_for_vtk_9_7_with_old_trame_vtk(trame_vtk
         _check_trame_vtk_version((9, 7, 0), trame_vtk_version)
 
 
-def test_check_trame_vtk_version_allows_vtk_9_7_with_supported_trame_vtk():
+@pytest.mark.parametrize(
+    'trame_vtk_version',
+    [
+        '2.11.15',
+        '2.11.15+g1234abc',  # local version segment, e.g. an editable/source install
+        '2.11.16',
+        '2.12.0.dev0',  # dev build of a later version, unambiguously above the floor
+    ],
+)
+def test_check_trame_vtk_version_allows_vtk_9_7_with_supported_trame_vtk(trame_vtk_version):
     # Should not raise.
-    _check_trame_vtk_version((9, 7, 0), '2.11.15')
+    _check_trame_vtk_version((9, 7, 0), trame_vtk_version)
 
 
 @pytest.mark.parametrize('trame_vtk_version', ['2.5.8', '2.11.8'])

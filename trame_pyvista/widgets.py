@@ -5,8 +5,8 @@ from __future__ import annotations
 import io
 import weakref
 
+from packaging.version import Version
 import pyvista as pv
-import scooby
 from trame.app import get_server as trame_get_server
 from trame.widgets.vtk import VtkLocalView
 from trame.widgets.vtk import VtkRemoteLocalView
@@ -19,14 +19,12 @@ CLOSED_PLOTTER_ERROR = (
     'Do not call `show()` for the plotter before passing to trame.'
 )
 
-_MIN_TRAME_VTK_FOR_VTK_9_7 = '2.11.15'
+_MIN_TRAME_VTK_FOR_VTK_9_7 = Version('2.11.15')
 
 
 def _check_trame_vtk_version(vtk_version_info, trame_vtk_version):
     """Raise if the installed trame-vtk does not support the installed VTK."""
-    if vtk_version_info >= (9, 7) and not scooby.knowledge.meets_version(
-        trame_vtk_version, _MIN_TRAME_VTK_FOR_VTK_9_7
-    ):
+    if vtk_version_info >= (9, 7) and Version(trame_vtk_version) < _MIN_TRAME_VTK_FOR_VTK_9_7:
         vtk_version = '.'.join(map(str, vtk_version_info))
         msg = (
             f'trame-vtk {trame_vtk_version} does not support VTK {vtk_version}. '
