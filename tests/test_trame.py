@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from IPython.display import IFrame
 import numpy as np
@@ -28,6 +29,7 @@ from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
 from trame_pyvista.widgets import _BasePyVistaView
+from trame_pyvista.widgets import _check_trame_vtk_version
 
 pytestmark = [
     pytest.mark.filterwarnings(
@@ -438,3 +440,24 @@ def test_ipywidgets_raises(monkeypatch: pytest.MonkeyPatch):
 
     with pytest.raises(ImportError, match=r'Please install `ipywidgets`.'):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.11.9', '2.11.14', '2.5.8'])
+def test_check_trame_vtk_version_raises_for_vtk_9_7_with_old_trame_vtk(trame_vtk_version):
+    match = re.escape(
+        f'trame-vtk {trame_vtk_version} does not support VTK 9.7.0. '
+        'Upgrade with `pip install "trame-vtk>=2.11.15"`.'
+    )
+    with pytest.raises(RuntimeError, match=match):
+        _check_trame_vtk_version((9, 7, 0), trame_vtk_version)
+
+
+def test_check_trame_vtk_version_allows_vtk_9_7_with_supported_trame_vtk():
+    # Should not raise.
+    _check_trame_vtk_version((9, 7, 0), '2.11.15')
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.5.8', '2.11.8'])
+def test_check_trame_vtk_version_allows_old_trame_vtk_before_vtk_9_7(trame_vtk_version):
+    # trame-vtk versions below 2.11.15 remain valid for pre-9.7 VTK.
+    _check_trame_vtk_version((9, 6, 0), trame_vtk_version)

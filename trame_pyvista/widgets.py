@@ -5,16 +5,37 @@ from __future__ import annotations
 import io
 import weakref
 
+import pyvista as pv
+import scooby
 from trame.app import get_server as trame_get_server
 from trame.widgets.vtk import VtkLocalView
 from trame.widgets.vtk import VtkRemoteLocalView
 from trame.widgets.vtk import VtkRemoteView
+from trame_vtk import __version__ as _trame_vtk_version
 from trame_vtk.tools.vtksz2html import write_html
 
 CLOSED_PLOTTER_ERROR = (
     'The render window for this plotter has been destroyed. '
     'Do not call `show()` for the plotter before passing to trame.'
 )
+
+_MIN_TRAME_VTK_FOR_VTK_9_7 = '2.11.15'
+
+
+def _check_trame_vtk_version(vtk_version_info, trame_vtk_version):
+    """Raise if the installed trame-vtk does not support the installed VTK."""
+    if vtk_version_info >= (9, 7) and not scooby.knowledge.meets_version(
+        trame_vtk_version, _MIN_TRAME_VTK_FOR_VTK_9_7
+    ):
+        vtk_version = '.'.join(map(str, vtk_version_info))
+        msg = (
+            f'trame-vtk {trame_vtk_version} does not support VTK {vtk_version}. '
+            f'Upgrade with `pip install "trame-vtk>={_MIN_TRAME_VTK_FOR_VTK_9_7}"`.'
+        )
+        raise RuntimeError(msg)
+
+
+_check_trame_vtk_version(pv.vtk_version_info, _trame_vtk_version)
 
 
 def get_server(*args, **kwargs):  # numpydoc ignore=RT01
