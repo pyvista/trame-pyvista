@@ -480,3 +480,30 @@ def test_check_trame_vtk_version_allows_vtk_9_7_with_supported_trame_vtk(trame_v
 def test_check_trame_vtk_version_allows_old_trame_vtk_before_vtk_9_7(trame_vtk_version):
     # trame-vtk versions below 2.11.15 remain valid for pre-9.7 VTK.
     _check_trame_vtk_version((9, 6, 0), trame_vtk_version)
+
+
+@pytest.mark.parametrize(
+    'trame_vtk_version',
+    [
+        '2.11.15',
+        '2.5.8',
+        '2.11.16.dev0',  # dev pre-release of 2.11.16 itself still sorts below the release
+    ],
+)
+def test_check_trame_vtk_version_raises_for_alt_backend_with_old_trame_vtk(trame_vtk_version):
+    match = re.escape(
+        f"trame-vtk {trame_vtk_version} does not support the 'cvista' VTK backend."
+    )
+    with pytest.raises(RuntimeError, match=match):
+        _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'cvista')
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.11.16', '2.12.0'])
+def test_check_trame_vtk_version_allows_alt_backend_with_supported_trame_vtk(trame_vtk_version):
+    _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'cvista')
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.11.15', '2.5.8'])
+def test_check_trame_vtk_version_ignores_backend_check_for_stock_vtk(trame_vtk_version):
+    """The alt-backend floor must not apply to stock VTK, which is the default."""
+    _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'vtk')
