@@ -491,9 +491,7 @@ def test_check_trame_vtk_version_allows_old_trame_vtk_before_vtk_9_7(trame_vtk_v
     ],
 )
 def test_check_trame_vtk_version_raises_for_alt_backend_with_old_trame_vtk(trame_vtk_version):
-    match = re.escape(
-        f"trame-vtk {trame_vtk_version} does not support the 'cvista' VTK backend."
-    )
+    match = re.escape(f"trame-vtk {trame_vtk_version} does not support the 'cvista' VTK backend.")
     with pytest.raises(RuntimeError, match=match):
         _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'cvista')
 
