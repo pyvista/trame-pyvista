@@ -41,7 +41,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - uses: pyvista/setup-headless-display-action@v4
+      - uses: pyvista/setup-headless-display-action@v5
         with:
           pyvista: true
       - run: uv sync --extra test --python ${{ matrix.python-version }}
@@ -62,7 +62,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - uses: pyvista/setup-headless-display-action@v4
+      - uses: pyvista/setup-headless-display-action@v5
         with:
           pyvista: true
       - run: uv sync --extra test --extra playwright --extra sphinx
