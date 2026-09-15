@@ -5,15 +5,52 @@ from __future__ import annotations
 import io
 import weakref
 
+from packaging.version import Version
+import pyvista as pv
 from trame.app import get_server as trame_get_server
 from trame.widgets.vtk import VtkLocalView
 from trame.widgets.vtk import VtkRemoteLocalView
 from trame.widgets.vtk import VtkRemoteView
+from trame_vtk import __version__ as _trame_vtk_version
 from trame_vtk.tools.vtksz2html import write_html
 
 CLOSED_PLOTTER_ERROR = (
     'The render window for this plotter has been destroyed. '
     'Do not call `show()` for the plotter before passing to trame.'
+)
+
+_MIN_TRAME_VTK_FOR_VTK_9_7 = Version('2.11.15')
+# 2.11.16 routed the last three serializer imports through VTK_MODULE_NAME
+# (Kitware/trame-vtk#124). Before that they were hardcoded to `vtkmodules`, so on
+# a non-stock VTK build trame served stock-VTK objects while PyVista served the
+# build's, and every scene export failed on the wrapped-type mismatch.
+_MIN_TRAME_VTK_FOR_ALT_BACKEND = Version('2.11.16')
+
+
+def _check_trame_vtk_version(vtk_version_info, trame_vtk_version, vtk_backend='vtk'):
+    """Raise if the installed trame-vtk does not support this VTK build."""
+    version = Version(trame_vtk_version)
+    if vtk_version_info >= (9, 7) and version < _MIN_TRAME_VTK_FOR_VTK_9_7:
+        vtk_version = '.'.join(map(str, vtk_version_info))
+        msg = (
+            f'trame-vtk {trame_vtk_version} does not support VTK {vtk_version}. '
+            f'Upgrade with `pip install "trame-vtk>={_MIN_TRAME_VTK_FOR_VTK_9_7}"`.'
+        )
+        raise RuntimeError(msg)
+    if vtk_backend != 'vtk' and version < _MIN_TRAME_VTK_FOR_ALT_BACKEND:
+        msg = (
+            f'trame-vtk {trame_vtk_version} does not support the {vtk_backend!r} VTK '
+            f'backend. Upgrade with `pip install "trame-vtk>='
+            f'{_MIN_TRAME_VTK_FOR_ALT_BACKEND}"`, and set VTK_MODULE_NAME={vtk_backend} '
+            f'so trame resolves the same build PyVista does.'
+        )
+        raise RuntimeError(msg)
+
+
+# `vtk_backend` is PyVista >= 0.49 (PyVista/pyvista#8787); older releases only
+# ever drive stock VTK.
+_check_trame_vtk_version(
+    pv.vtk_version_info, _trame_vtk_version, getattr(pv, 'vtk_backend', lambda: 'vtk')()
 )
 
 
