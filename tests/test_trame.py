@@ -652,7 +652,6 @@ def test_viewer_animate():
 def test_sphinx_ext_setup():
     from unittest.mock import MagicMock
 
-    pytest.importorskip('sphinx')
     from trame_pyvista import sphinx_ext
 
     app = MagicMock()
