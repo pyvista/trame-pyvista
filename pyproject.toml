@@ -28,7 +28,7 @@ dependencies = [
   'packaging',
   'pyvista>=0.48',
   # Upper-pin all trame dependencies since these updates often include unintentional breaking changes
-  'trame>=2.5.2,<3.13.3',
+  'trame>=2.5.2,<4.0.1',
   'trame-client>=2.12.7,<3.13.7',
   'trame-common<1.2.5',
   'trame-server>=2.11.7,!=3.7.*,!=3.8.0,<3.12.6',
