@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 from IPython.display import IFrame
@@ -11,6 +13,7 @@ import pytest
 import pyvista as pv
 from pyvista import examples
 from trame.app import get_server
+from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
 
 from trame_pyvista.jupyter import EmbeddableWidget
 from trame_pyvista.jupyter import TrameServerDownError
@@ -72,6 +75,43 @@ def test_trame_server_launch():
     elegantly_launch(name)
     server = get_server(name=name)
     assert server.running
+
+
+def test_launch_server_with_jupyter_kernel_argv():
+    # ipykernel passes ``--f=<connection file>``; a CLI parser that abbreviates
+    # options rejects it as ambiguous (pyvista/pyvista#8040, trame-server 3.7-3.8.0).
+    # trame ignores ``sys.argv`` once pytest is imported, so launch in a fresh process.
+    code = (
+        'import sys\n'
+        "sys.argv = ['ipykernel_launcher.py', '--f=/tmp/kernel-1234.json']\n"
+        'from trame.app import get_server\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        "elegantly_launch('kernel-argv')\n"
+        "assert get_server(name='kernel-argv').running\n"
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_export_html_embeds_viewer_and_scene():
+    # trame-vtk 2.10.3 shipped a GitHub 404 page as the static viewer (#64).
+    viewer = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    assert 'OfflineLocalView' in viewer
+    assert 'Page not found' not in viewer
+    assert len(viewer) > 500_000
+
+    pl = pv.Plotter()
+    pl.add_mesh(pv.Sphere())
+    html = pl.trame.export_html(None).getvalue()
+    assert 'OfflineLocalView.load(container, { base64Str })' in html
+    assert len(html) > len(viewer)
 
 
 def test_base_viewer_ui():
