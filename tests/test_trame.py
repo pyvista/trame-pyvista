@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import os
 from pathlib import Path
+import re
+import subprocess
+import sys
 
 from IPython.display import IFrame
 import numpy as np
@@ -8,11 +13,15 @@ import pytest
 import pyvista as pv
 from pyvista import examples
 from trame.app import get_server
+from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
 
 from trame_pyvista.jupyter import EmbeddableWidget
+from trame_pyvista.jupyter import TrameServerDownError
 from trame_pyvista.jupyter import Widget
 from trame_pyvista.jupyter import build_url
 from trame_pyvista.jupyter import elegantly_launch
+from trame_pyvista.jupyter import launch_server
+from trame_pyvista.jupyter import show_trame
 from trame_pyvista.ui import base_viewer
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.ui import plotter_ui
@@ -28,6 +37,7 @@ from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
 from trame_pyvista.widgets import _BasePyVistaView
+from trame_pyvista.widgets import _check_trame_vtk_version
 
 pytestmark = [
     pytest.mark.filterwarnings(
@@ -65,6 +75,43 @@ def test_trame_server_launch():
     elegantly_launch(name)
     server = get_server(name=name)
     assert server.running
+
+
+def test_launch_server_with_jupyter_kernel_argv():
+    # ipykernel passes ``--f=<connection file>``; a CLI parser that abbreviates
+    # options rejects it as ambiguous (pyvista/pyvista#8040, trame-server 3.7-3.8.0).
+    # trame ignores ``sys.argv`` once pytest is imported, so launch in a fresh process.
+    code = (
+        'import sys\n'
+        "sys.argv = ['ipykernel_launcher.py', '--f=/tmp/kernel-1234.json']\n"
+        'from trame.app import get_server\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        "elegantly_launch('kernel-argv')\n"
+        "assert get_server(name='kernel-argv').running\n"
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_export_html_embeds_viewer_and_scene():
+    # trame-vtk 2.10.3 shipped a GitHub 404 page as the static viewer (#64).
+    viewer = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    assert 'OfflineLocalView' in viewer
+    assert 'Page not found' not in viewer
+    assert len(viewer) > 500_000
+
+    pl = pv.Plotter()
+    pl.add_mesh(pv.Sphere())
+    html = pl.trame.export_html(None).getvalue()
+    assert 'OfflineLocalView.load(container, { base64Str })' in html
+    assert len(html) > len(viewer)
 
 
 def test_base_viewer_ui():
@@ -438,3 +485,202 @@ def test_ipywidgets_raises(monkeypatch: pytest.MonkeyPatch):
 
     with pytest.raises(ImportError, match=r'Please install `ipywidgets`.'):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
+
+
+@pytest.mark.parametrize(
+    'trame_vtk_version',
+    [
+        '2.11.9',
+        '2.11.14',
+        '2.5.8',
+        '2.11.9.dev0',
+        '2.11.9+g1234',
+        '2.11.15.dev0',  # dev pre-release of 2.11.15 itself still sorts below the release
+    ],
+)
+def test_check_trame_vtk_version_raises_for_vtk_9_7_with_old_trame_vtk(trame_vtk_version):
+    match = re.escape(
+        f'trame-vtk {trame_vtk_version} does not support VTK 9.7.0. '
+        'Upgrade with `pip install "trame-vtk>=2.11.15"`.'
+    )
+    with pytest.raises(RuntimeError, match=match):
+        _check_trame_vtk_version((9, 7, 0), trame_vtk_version)
+
+
+@pytest.mark.parametrize(
+    'trame_vtk_version',
+    [
+        '2.11.15',
+        '2.11.15+g1234abc',  # local version segment, e.g. an editable/source install
+        '2.11.16',
+        '2.12.0.dev0',  # dev build of a later version, unambiguously above the floor
+    ],
+)
+def test_check_trame_vtk_version_allows_vtk_9_7_with_supported_trame_vtk(trame_vtk_version):
+    # Should not raise.
+    _check_trame_vtk_version((9, 7, 0), trame_vtk_version)
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.5.8', '2.11.8'])
+def test_check_trame_vtk_version_allows_old_trame_vtk_before_vtk_9_7(trame_vtk_version):
+    # trame-vtk versions below 2.11.15 remain valid for pre-9.7 VTK.
+    _check_trame_vtk_version((9, 6, 0), trame_vtk_version)
+
+
+@pytest.mark.parametrize(
+    'trame_vtk_version',
+    [
+        '2.11.15',
+        '2.5.8',
+        '2.11.16.dev0',  # dev pre-release of 2.11.16 itself still sorts below the release
+    ],
+)
+def test_check_trame_vtk_version_raises_for_alt_backend_with_old_trame_vtk(trame_vtk_version):
+    match = re.escape(f"trame-vtk {trame_vtk_version} does not support the 'cvista' VTK backend.")
+    with pytest.raises(RuntimeError, match=match):
+        _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'cvista')
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.11.16', '2.12.0'])
+def test_check_trame_vtk_version_allows_alt_backend_with_supported_trame_vtk(trame_vtk_version):
+    _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'cvista')
+
+
+@pytest.mark.parametrize('trame_vtk_version', ['2.11.15', '2.5.8'])
+def test_check_trame_vtk_version_ignores_backend_check_for_stock_vtk(trame_vtk_version):
+    """The alt-backend floor must not apply to stock VTK, which is the default."""
+    _check_trame_vtk_version((9, 6, 2), trame_vtk_version, 'vtk')
+
+
+def test_launch_server_defaults():
+    server = launch_server()
+    assert server.name == pv.global_theme.trame.jupyter_server_name
+
+
+def test_build_url_server_proxy():
+    server = get_server(name=pv.global_theme.trame.jupyter_server_name)
+    src = build_url(server, ui='abc', server_proxy_enabled=True, server_proxy_prefix='proxy/')
+    assert src == f'proxy/{server.port}/index.html?ui=abc&reconnect=auto'
+    src = build_url(server, server_proxy_enabled=True, server_proxy_prefix='proxy/')
+    assert src == f'proxy/{server.port}/index.html?reconnect=auto'
+
+
+def test_elegantly_launch_requires_nest_asyncio(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(sys.modules, 'nest_asyncio2', None)
+    with pytest.raises(ImportError, match='Please install `nest_asyncio2`'):
+        elegantly_launch('never')
+
+
+def test_show_trame_closed_plotter():
+    pl = pv.Plotter(notebook=True)
+    pl.close()
+    with pytest.raises(RuntimeError, match='has been destroyed'):
+        show_trame(pl)
+
+
+def test_show_trame_named_server_down():
+    pl = pv.Plotter(notebook=True)
+    with pytest.raises(TrameServerDownError, match='Trame server has not launched'):
+        show_trame(pl, name='never-launched')
+
+
+@pytest.mark.parametrize('view_cls', [PyVistaLocalView, PyVistaRemoteLocalView, PyVistaRemoteView])
+def test_view_export_html(view_cls):
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    view = view_cls(pl, trame_server=server)
+    html = view.export_html()
+    assert isinstance(html, bytes)
+    assert b'OfflineLocalView' in html
+    view.update_camera()
+    view.update_image()
+
+
+def test_component_export_html_adds_suffix(tmp_path):
+    pl = pv.Plotter()
+    pl.add_mesh(pv.Sphere())
+    pl.trame.export_html(tmp_path / 'scene')
+    assert (tmp_path / 'scene.html').is_file()
+
+
+def test_component_show():
+    pv.set_jupyter_backend('trame')
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    assert isinstance(pl.trame.show(), Widget)
+
+
+def test_get_viewer_default_server():
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl)
+    assert viewer.server is get_server()
+
+
+def test_viewer_parallel_projection():
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl)
+    viewer.on_parallel_projection_change(**{viewer.PARALLEL: True})
+    assert pl.renderer.parallel_projection
+    viewer.on_parallel_projection_change(**{viewer.PARALLEL: False})
+    assert not pl.renderer.parallel_projection
+
+
+def test_viewer_export_requires_a_view():
+    pl = pv.Plotter(notebook=True)
+    with pytest.raises(TypeError, match='cannot be exported'):
+        get_viewer(pl).export()
+
+
+def test_viewer_animate():
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl, animate=True)
+    viewer.animation_delay = 0
+    calls = []
+    viewer.update = lambda **_: calls.append(1)
+
+    async def run_briefly():
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(viewer._animate(), timeout=0.05)
+
+    asyncio.run(run_briefly())
+    assert calls
+
+
+def test_sphinx_ext_setup():
+    from unittest.mock import MagicMock
+
+    from trame_pyvista import sphinx_ext
+
+    app = MagicMock()
+    meta = sphinx_ext.setup(app)
+    app.add_directive.assert_called_once_with('offlineviewer', sphinx_ext.OfflineViewerDirective)
+    assert meta['parallel_read_safe']
+
+
+def test_axis_visibility_syncs_local_view_widgets():
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    plotter_ui(pl, mode='client', server=server)
+    viewer = get_viewer(pl, suppress_rendering=True)
+    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    assert pl.renderer.axes_widget is not None
+    viewer.on_axis_visibility_change(**{viewer.AXIS: False})
+
+
+@pytest.mark.parametrize('view_cls', [PyVistaLocalView, PyVistaRemoteLocalView])
+def test_view_export_html_without_data(view_cls, monkeypatch: pytest.MonkeyPatch):
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    view = view_cls(pl, trame_server=server)
+    monkeypatch.setattr(view, 'export', lambda **_: None, raising=False)
+    monkeypatch.setattr(view, 'export_geometry', lambda **_: None, raising=False)
+    with pytest.raises(ValueError, match='No data to write'):
+        view.export_html()
