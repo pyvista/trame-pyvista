@@ -8,6 +8,9 @@ updates:
       interval: weekly
     labels: [maintenance, dependencies]
     open-pull-requests-limit: 20
+    groups:
+      trame:
+        patterns: ["trame*", "wslink"]
   - package-ecosystem: github-actions
     directory: "/.github/workflows"
     schedule:
