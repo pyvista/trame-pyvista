@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 import os
 from pathlib import Path
 import subprocess
+import sys
 from threading import Thread
 
 import pytest
@@ -26,7 +27,7 @@ def test_offlineviewer_interactive(tmp_path: Path) -> None:
     html_dir = tmp_path / '_build'
 
     result = subprocess.run(
-        ['sphinx-build', '-b', 'html', str(source_dir), str(html_dir)],
+        [sys.executable, '-m', 'sphinx', '-b', 'html', str(source_dir), str(html_dir)],
         capture_output=True,
         text=True,
         check=False,
@@ -90,7 +91,7 @@ def sphere_html_screenshot(tmp_path):
         pv.set_jupyter_backend('html')
         pl = pv.Plotter(window_size=window_size)
         pl.add_mesh(pv.Sphere(), show_edges=True)
-        pl.export_html(out_path)
+        pl.trame.export_html(out_path)
 
     def html_screenshot(html_file: Path, screenshot_file: Path, window_size=window_size) -> Path:
         # Convert html file to a png
