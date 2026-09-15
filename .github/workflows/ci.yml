@@ -6,6 +6,8 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,6 +70,28 @@ jobs:
       - run: uv sync --extra test --extra playwright --extra sphinx
       - run: uv run playwright install --with-deps chromium
       - run: uv run pytest tests/ --playwright -m needs_playwright
+
+  # Canary: run the suite against the newest trame ecosystem releases, ignoring
+  # our upper pins, so a breakage is known before dependabot proposes the bump.
+  trame-latest:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: pyvista/setup-headless-display-action@v4
+        with:
+          pyvista: true
+      - run: uv sync --extra test --extra playwright --extra sphinx
+      - run: uv pip install --upgrade trame trame-client trame-common trame-server trame-vtk trame-vuetify wslink
+      - run: uv pip list | grep -iE '^(vtk|trame|wslink)'
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run pytest tests/ --playwright
 
   build:
     needs: [lint, test]
