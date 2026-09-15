@@ -7,6 +7,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
+    # Weekly, Monday 06:00 UTC: runs `trame-latest` against that week's releases.
     - cron: "0 6 * * 1"
 
 permissions:
@@ -74,8 +75,9 @@ jobs:
       - run: uv run playwright install --with-deps chromium
       - run: uv run pytest tests/ --playwright -m needs_playwright
 
-  # Canary: run the suite against the newest trame ecosystem releases, ignoring
-  # our upper pins, so a breakage is known before dependabot proposes the bump.
+  # Run the suite against the newest trame ecosystem releases that can coexist,
+  # ignoring our upper pins, so a breakage is known before dependabot proposes the
+  # bump. Synced versions become lower bounds so nothing is downgraded to fit.
   trame-latest:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -91,7 +93,8 @@ jobs:
         with:
           pyvista: true
       - run: uv sync --extra test --extra playwright --extra sphinx
-      - run: uv pip install --upgrade trame trame-client trame-common trame-server trame-vtk trame-vuetify wslink
+      - run: uv pip freeze | grep -iE '^(trame|wslink)' | sed 's/==/>=/' > floors.txt
+      - run: uv pip install --upgrade --constraint floors.txt trame trame-client trame-common trame-server trame-vtk trame-vuetify wslink
       - run: uv pip list | grep -iE '^(vtk|trame|wslink)'
       - run: uv run playwright install --with-deps chromium
       - run: uv run pytest tests/ --playwright
