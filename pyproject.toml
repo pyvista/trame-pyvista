@@ -60,7 +60,7 @@ playwright = [
 dev = [
   'mypy>=1.10',
   'pre-commit',
-  'ruff>=0.15,<0.16.0',
+  'ruff==0.16.7',
   'trame-pyvista[jupyter,sphinx,test,playwright]',
 ]
 
