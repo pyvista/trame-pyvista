@@ -47,6 +47,7 @@ test = [
   'nest-asyncio2',
   'pytest>=8.0',
   'pytest-cov>=5.0',
+  'trame-pyvista[sphinx]',
 ]
 playwright = [
   'matplotlib',

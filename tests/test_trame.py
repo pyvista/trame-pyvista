@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 import subprocess
@@ -14,9 +15,12 @@ from trame.app import get_server
 from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
 
 from trame_pyvista.jupyter import EmbeddableWidget
+from trame_pyvista.jupyter import TrameServerDownError
 from trame_pyvista.jupyter import Widget
 from trame_pyvista.jupyter import build_url
 from trame_pyvista.jupyter import elegantly_launch
+from trame_pyvista.jupyter import launch_server
+from trame_pyvista.jupyter import show_trame
 from trame_pyvista.ui import base_viewer
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.ui import plotter_ui
@@ -479,3 +483,137 @@ def test_ipywidgets_raises(monkeypatch: pytest.MonkeyPatch):
 
     with pytest.raises(ImportError, match=r'Please install `ipywidgets`.'):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
+
+
+def test_launch_server_defaults():
+    server = launch_server()
+    assert server.name == pv.global_theme.trame.jupyter_server_name
+
+
+def test_build_url_server_proxy():
+    server = get_server(name=pv.global_theme.trame.jupyter_server_name)
+    src = build_url(server, ui='abc', server_proxy_enabled=True, server_proxy_prefix='proxy/')
+    assert src == f'proxy/{server.port}/index.html?ui=abc&reconnect=auto'
+    src = build_url(server, server_proxy_enabled=True, server_proxy_prefix='proxy/')
+    assert src == f'proxy/{server.port}/index.html?reconnect=auto'
+
+
+def test_elegantly_launch_requires_nest_asyncio(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(sys.modules, 'nest_asyncio2', None)
+    with pytest.raises(ImportError, match='Please install `nest_asyncio2`'):
+        elegantly_launch('never')
+
+
+def test_show_trame_closed_plotter():
+    pl = pv.Plotter(notebook=True)
+    pl.close()
+    with pytest.raises(RuntimeError, match='has been destroyed'):
+        show_trame(pl)
+
+
+def test_show_trame_named_server_down():
+    pl = pv.Plotter(notebook=True)
+    with pytest.raises(TrameServerDownError, match='Trame server has not launched'):
+        show_trame(pl, name='never-launched')
+
+
+@pytest.mark.parametrize('view_cls', [PyVistaLocalView, PyVistaRemoteLocalView, PyVistaRemoteView])
+def test_view_export_html(view_cls):
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    view = view_cls(pl, trame_server=server)
+    html = view.export_html()
+    assert isinstance(html, bytes)
+    assert b'OfflineLocalView' in html
+    view.update_camera()
+    view.update_image()
+
+
+def test_component_export_html_adds_suffix(tmp_path):
+    pl = pv.Plotter()
+    pl.add_mesh(pv.Sphere())
+    pl.trame.export_html(tmp_path / 'scene')
+    assert (tmp_path / 'scene.html').is_file()
+
+
+def test_component_show():
+    pv.set_jupyter_backend('trame')
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    assert isinstance(pl.trame.show(), Widget)
+
+
+def test_get_viewer_default_server():
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl)
+    assert viewer.server is get_server()
+
+
+def test_viewer_parallel_projection():
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl)
+    viewer.on_parallel_projection_change(**{viewer.PARALLEL: True})
+    assert pl.renderer.parallel_projection
+    viewer.on_parallel_projection_change(**{viewer.PARALLEL: False})
+    assert not pl.renderer.parallel_projection
+
+
+def test_viewer_export_requires_a_view():
+    pl = pv.Plotter(notebook=True)
+    with pytest.raises(TypeError, match='cannot be exported'):
+        get_viewer(pl).export()
+
+
+def test_viewer_animate():
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl, animate=True)
+    viewer.animation_delay = 0
+    calls = []
+    viewer.update = lambda **_: calls.append(1)
+
+    async def run_briefly():
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(viewer._animate(), timeout=0.05)
+
+    asyncio.run(run_briefly())
+    assert calls
+
+
+def test_sphinx_ext_setup():
+    from unittest.mock import MagicMock
+
+    from trame_pyvista import sphinx_ext
+
+    app = MagicMock()
+    meta = sphinx_ext.setup(app)
+    app.add_directive.assert_called_once_with('offlineviewer', sphinx_ext.OfflineViewerDirective)
+    assert meta['parallel_read_safe']
+
+
+def test_axis_visibility_syncs_local_view_widgets():
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    plotter_ui(pl, mode='client', server=server)
+    viewer = get_viewer(pl, suppress_rendering=True)
+    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    assert pl.renderer.axes_widget is not None
+    viewer.on_axis_visibility_change(**{viewer.AXIS: False})
+
+
+@pytest.mark.parametrize('view_cls', [PyVistaLocalView, PyVistaRemoteLocalView])
+def test_view_export_html_without_data(view_cls, monkeypatch: pytest.MonkeyPatch):
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    view = view_cls(pl, trame_server=server)
+    monkeypatch.setattr(view, 'export', lambda **_: None, raising=False)
+    monkeypatch.setattr(view, 'export_geometry', lambda **_: None, raising=False)
+    with pytest.raises(ValueError, match='No data to write'):
+        view.export_html()
