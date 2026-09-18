@@ -5,12 +5,10 @@ from pyvista import examples
 
 from trame.app import TrameApp
 from trame.ui.vuetify3 import VAppLayout
-from trame.widgets import vuetify3 as v3
+from trame.widgets import vuetify3 as v3, pyvista as pvw
 from trame.decorators import change
 
 from vtkmodules.vtkFiltersCore import vtkContourFilter
-
-from trame_pyvista.ui import plotter_ui
 
 pv.OFF_SCREEN = True
 
@@ -55,30 +53,14 @@ class ContourViewer(TrameApp):
     @change('contour_value')
     def _on_contour(self, contour_value, **_):
         self.contour.SetValue(0, contour_value)
-
-        if self.mode == 'server':
-            # Animation won't detect change unless render_window mtime is new
-            self.pl.render_window.Modified()
-        elif self.mode == 'trame':
-            self.ctx.view.update_image()
-        elif self.mode == 'wasm':
-            self.ctx.view.update_throttle()
-
-    def start_animation(self):
-        if self.mode == 'server':
-            self.ctx.view.start_animation(fps=20, quality=80, ratio=1)
-
-    def stop_animation(self):
-        if self.mode == 'server':
-            self.ctx.view.stop_animation()
-        else:
-            self.ctx.view.update()
+        self.ctx.view.update_image()
 
     def _build_ui(self):
         self.state.trame__title = 'Contour'
         with VAppLayout(self.server) as self.ui:
-            with v3.VMain():
-                plotter_ui(self.pl, mode=self.mode, ctx_name='view')
+            with v3.VMain(classes='position-relative'):
+                pvw.PyVistaWasmView(self.pl, ctx_name='view')
+                pvw.PyVistaPlotterControls(self.pl, self.ctx.view)
             with v3.VFooter(app=True):
                 v3.VProgressLinear(
                     indeterminate=True,
@@ -93,8 +75,6 @@ class ContourViewer(TrameApp):
                     step=('(data_range[1] - data_range[0]) / 255',),
                     hide_details=True,
                     density='compact',
-                    start=self.start_animation,
-                    end=self.stop_animation,
                 )
 
 

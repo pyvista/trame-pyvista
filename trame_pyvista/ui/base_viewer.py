@@ -83,6 +83,7 @@ class BaseViewer:
             'trame',
             'client',
             'server',
+            'wasm',
         ]
         server.state[self.SHOW_UI] = True
         server.state[self.GRID] = False

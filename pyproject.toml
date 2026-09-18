@@ -35,11 +35,13 @@ dependencies = [
   'trame-vtk>=2.11.16,<2.11.17',
   'trame-vuetify>=3.2.5,<3.2.6',
   'wslink>=2.5,<2.5.8',
+  'trame-dataclass>=2.2,<3',
 ]
 
 [project.optional-dependencies]
 jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
 sphinx = ['docutils', 'sphinx']
+wasm = ['trame-vtklocal>=1,<2']
 test = [
   'numpy<2.5',       # Temp pin until VTK 9.7 is supported to avoid noisy shape deprecation warnings
   'ipython',

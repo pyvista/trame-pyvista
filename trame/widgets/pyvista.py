@@ -9,9 +9,14 @@ from __future__ import annotations
 from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
+from trame_pyvista.widgets import PyVistaWasmView
+
+from trame_pyvista.vue3_widgets import PyVistaPlotterControls
 
 __all__ = [
     'PyVistaLocalView',
     'PyVistaRemoteLocalView',
     'PyVistaRemoteView',
+    'PyVistaWasmView',
+    'PyVistaPlotterControls',
 ]

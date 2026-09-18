@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from typing import override
 import weakref
 
 from trame.app import get_server as trame_get_server
@@ -14,6 +15,11 @@ from trame_vtk.tools.vtksz2html import write_html
 CLOSED_PLOTTER_ERROR = (
     'The render window for this plotter has been destroyed. '
     'Do not call `show()` for the plotter before passing to trame.'
+)
+
+MISSING_WASM = (
+    'The widget PyVistaWasmLocalView can only be used if trame-vtklocal is installed. '
+    'To install trame-vtklocal you should run "pip install trame-pyvista[wasm]".'
 )
 
 
@@ -282,3 +288,75 @@ class PyVistaRemoteLocalView(VtkRemoteLocalView, _BasePyVistaView):  # type: ign
         self.set_widgets(
             [ren.axes_widget for ren in self._plotter().renderers if ren.axes_widget is not None],  # type: ignore[union-attr]
         )
+
+
+try:
+    from trame.widgets import vtklocal
+
+    class PyVistaWasmView(vtklocal.LocalView, _BasePyVistaView):  # type: ignore[misc]
+        """PyVista wrapping of trame LocalView for in-browser rendering.
+
+        This will connect to and synchronize with a PyVista plotter to
+        perform client-side rendering with VTK.wasm in the browser.
+
+        Parameters
+        ----------
+        plotter : pyvista.Plotter
+            The PyVista Plotter to represent in the output view.
+
+        **kwargs : dict, optional
+            Any additional keyword arguments to pass to
+            ``trame.widgets.vtklocal.LocalView``.
+
+        """
+
+        def __init__(self, plotter, **kwargs):
+            """Create a trame local view from a PyVista Plotter."""
+            _BasePyVistaView.__init__(self, plotter)
+
+            vtklocal.LocalView.__init__(
+                self,
+                self._plotter().render_window,  # type: ignore[union-attr]
+                **kwargs,
+            )
+            self._post_initialize()
+
+        def _post_initialize(self):
+            super()._post_initialize()
+            self.set_widgets(
+                [
+                    ren.axes_widget
+                    for ren in self._plotter().renderers
+                    if ren.axes_widget is not None
+                ],  # type: ignore[union-attr]
+            )
+
+        def set_widgets(self, widgets=None):
+            """Make it looks like vtk.js local view"""
+            if not widgets:
+                widgets = []
+
+            for w in widgets:
+                self.register_vtk_object(w)
+
+        def update_camera(self):
+            """Sync scene with camera update."""
+            self.update(push_camera=True)
+
+        def update_image(self, *args, **kwargs):  # pragma: no cover
+            """Forward to throttled update."""
+            self.update_throttle()
+
+        @override
+        def export_html(self):
+            """Export scene to HTML as StringIO buffer."""
+            return vtklocal.LocalView.export_html(self)
+
+        def export_data(self):
+            return self.export_wazex()
+
+
+except ImportError:
+
+    def PyVistaWasmView(*_, **__):
+        raise RuntimeError(MISSING_WASM)
