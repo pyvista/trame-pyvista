@@ -272,7 +272,7 @@ class BaseViewer:
             else:
                 renderer.hide_axes()
         for view in self._html_views:
-            # Class lookup avoids the trame-client element __getattr__; VtkRemoteView has no set_widgets.
+            # Class lookup skips the trame-client element __getattr__
             if callable(getattr(type(view), 'set_widgets', None)):
                 view.set_widgets(
                     [
