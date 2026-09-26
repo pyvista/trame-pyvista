@@ -179,8 +179,12 @@ def served_plotter(request):
         assert url is not None, ''.join(lines)
         yield url
     finally:
-        proc.kill()
-        proc.wait()
+        proc.terminate()
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
 
 @pytest.mark.needs_playwright

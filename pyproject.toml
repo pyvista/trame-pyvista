@@ -192,6 +192,7 @@ source = ['trame_pyvista']
 patch = ['subprocess']
 relative_files = true
 omit = ['trame_pyvista/_version.py']
+sigterm = true
 
 [tool.coverage.report]
 exclude_lines = [
