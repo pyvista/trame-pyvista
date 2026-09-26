@@ -36,13 +36,15 @@ readme = 'README.md'
 requires-python = '>=3.10'
 
 [project.optional-dependencies]
+jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
+sphinx = ['docutils', 'sphinx']
+
 dev = [
   'mypy>=1.10',
   'pre-commit',
   'ruff==0.16.8',
   'trame-pyvista[jupyter,sphinx,test,playwright]',
 ]
-jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
 playwright = [
   'matplotlib',
   'numpydoc',
@@ -52,7 +54,6 @@ playwright = [
   'sphinx-design',
   'sphinx-gallery',
 ]
-sphinx = ['docutils', 'sphinx']
 test = [
   'ipython',
   'ipywidgets',
