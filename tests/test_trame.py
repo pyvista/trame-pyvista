@@ -630,7 +630,7 @@ def test_axis_visibility_registers_axes_widgets(mode, view_cls, monkeypatch: pyt
 
 
 def test_axis_visibility_remote_view_has_no_widgets(capsys: pytest.CaptureFixture[str]):
-    """Toggling the axes on a server-rendered view neither fails nor reports a missing attribute."""
+    """Toggling the axes on a server-rendered view reports no missing attribute."""
     name = pv.global_theme.trame.jupyter_server_name
     elegantly_launch(name)
     server = get_server(name=name)
