@@ -101,7 +101,7 @@ jobs:
       - run: uvx --from 'coverage[toml]>=7.10' coverage xml
       - run: uvx --from 'coverage[toml]>=7.10' coverage report --fail-under=95
       - name: Patch coverage
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
           uvx diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under 90 --format markdown:diff-cover.md
       - if: ${{ !cancelled() && github.event_name == 'pull_request' }}
