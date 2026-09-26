@@ -606,6 +606,23 @@ def test_axis_visibility_syncs_local_view_widgets():
     viewer.on_axis_visibility_change(**{viewer.AXIS: False})
 
 
+def test_axis_visibility_registers_axes_widget(monkeypatch: pytest.MonkeyPatch):
+    """Showing the axes passes the axes widget to the local view's set_widgets."""
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    plotter_ui(pl, mode='client', server=server)
+    viewer = get_viewer(pl, suppress_rendering=True)
+    (view,) = viewer.views
+    assert isinstance(view, PyVistaLocalView)
+    calls = []
+    monkeypatch.setattr(view, 'set_widgets', calls.append)
+    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    assert calls == [[pl.renderer.axes_widget]]
+
+
 @pytest.mark.parametrize('view_cls', [PyVistaLocalView, PyVistaRemoteLocalView])
 def test_view_export_html_without_data(view_cls, monkeypatch: pytest.MonkeyPatch):
     name = pv.global_theme.trame.jupyter_server_name
