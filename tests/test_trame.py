@@ -629,6 +629,23 @@ def test_axis_visibility_registers_axes_widgets(mode, view_cls, monkeypatch: pyt
     assert calls == [widgets]
 
 
+@pytest.mark.parametrize('mode', ['client', 'trame', 'server'])
+def test_axis_visibility_updates_each_view_once(mode, monkeypatch: pytest.MonkeyPatch):
+    """Toggling the axes updates each view exactly once."""
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    plotter_ui(pl, mode=mode, server=server)
+    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
+    (view,) = viewer.views
+    calls = []
+    monkeypatch.setattr(view, 'update', lambda *args, **kwargs: calls.append(1))
+    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    assert len(calls) == 1
+
+
 def test_axis_visibility_remote_view_has_no_widgets(capsys: pytest.CaptureFixture[str]):
     """Toggling the axes on a server-rendered view reports no missing attribute."""
     name = pv.global_theme.trame.jupyter_server_name

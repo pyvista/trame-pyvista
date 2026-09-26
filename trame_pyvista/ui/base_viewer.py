@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pyvista as pv
 from trame.app import get_server
+from trame.widgets.vtk import VtkLocalView
 
 if TYPE_CHECKING:
     from trame_client.ui.core import AbstractLayout
@@ -271,17 +272,16 @@ class BaseViewer:
                 renderer.show_axes()
             else:
                 renderer.hide_axes()
+        widgets = [
+            ren.axes_widget for ren in self.plotter.renderers if ren.axes_widget is not None
+        ]
         for view in self._html_views:
             # Class lookup skips the trame-client element __getattr__
             if callable(getattr(type(view), 'set_widgets', None)):
-                view.set_widgets(
-                    [
-                        ren.axes_widget
-                        for ren in self.plotter.renderers
-                        if ren.axes_widget is not None
-                    ],
-                )
-        self.update()
+                view.set_widgets(widgets)
+            # VtkLocalView.set_widgets already pushes the full scene
+            if not isinstance(view, VtkLocalView):
+                view.update()
 
     def on_rendering_mode_change(self, **kwargs):
         """Handle any configurations when the render mode changes between client and server.
