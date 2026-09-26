@@ -638,13 +638,14 @@ def test_axis_visibility_skips_renderers_without_axes(monkeypatch: pytest.Monkey
 @pytest.mark.parametrize(
     ('mode', 'patched', 'expected'),
     [
-        ('client', ['update'], ['update']),
-        (
+        pytest.param('client', ['update'], ['update'], id='client'),
+        pytest.param(
             'trame',
             ['update', 'update_geometry', 'update_image'],
             ['update_geometry', 'update_image'],
+            id='trame',
         ),
-        ('server', ['update'], ['update']),
+        pytest.param('server', ['update'], ['update'], id='server'),
     ],
 )
 def test_axis_visibility_pushes_each_view_once(
