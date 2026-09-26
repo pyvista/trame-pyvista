@@ -46,6 +46,7 @@ test = [
   'ipywidgets',
   'nest-asyncio2',
   'pytest>=8.0',
+  'coverage>=7.10',
   'pytest-cov>=5.0',
   'trame-pyvista[sphinx]',
 ]
@@ -188,6 +189,8 @@ filterwarnings = [
 [tool.coverage.run]
 branch = true
 source = ['trame_pyvista']
+patch = ['subprocess']
+relative_files = true
 
 [tool.coverage.report]
 exclude_lines = [

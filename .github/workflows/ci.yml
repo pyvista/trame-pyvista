@@ -51,12 +51,13 @@ jobs:
         with:
           pyvista: true
       - run: uv sync --extra test --python ${{ matrix.python-version }}
-      - run: uv run pytest tests/ --cov --cov-report=xml
-      - uses: codecov/codecov-action@v7
+      - run: uv run pytest tests/ --cov
+      - run: mv .coverage .coverage.test-${{ matrix.python-version }}
+      - uses: actions/upload-artifact@v7
         with:
-          files: ./coverage.xml
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          name: coverage-test-${{ matrix.python-version }}
+          path: .coverage.test-${{ matrix.python-version }}
+          include-hidden-files: true
 
   playwright:
     runs-on: ubuntu-latest
@@ -73,7 +74,44 @@ jobs:
           pyvista: true
       - run: uv sync --extra test --extra playwright --extra sphinx
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest tests/ --playwright -m needs_playwright
+      - run: uv run pytest tests/ --playwright -m needs_playwright --cov
+      - run: mv .coverage .coverage.playwright
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-playwright
+          path: .coverage.playwright
+          include-hidden-files: true
+
+  # Combine every job's coverage, gate the total and the lines a PR changes, then upload.
+  coverage:
+    needs: [test, playwright]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          path: coverage-data
+          merge-multiple: true
+      - run: uvx --from 'coverage[toml]>=7.10' coverage combine coverage-data
+      - run: uvx --from 'coverage[toml]>=7.10' coverage xml
+      - run: uvx --from 'coverage[toml]>=7.10' coverage report --fail-under=90
+      - name: Patch coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          uvx diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under 90 --markdown-report diff-cover.md
+      - if: always() && github.event_name == 'pull_request'
+        run: cat diff-cover.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: codecov/codecov-action@v7
+        if: always()
+        with:
+          files: ./coverage.xml
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # Run the suite with every trame dependency at its declared minimum.
   trame-floor:
