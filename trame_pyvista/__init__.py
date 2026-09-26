@@ -34,7 +34,10 @@ register_plotter_component('trame', override=True)(TrameComponent)
 # does not forward the backend name, so each registration captures its
 # own ``mode``.
 def _make_handler(_mode: str):
+    """Create a jupyter backend handler bound to a given trame mode."""
+
     def _handler(plotter, **kwargs):
+        """Show the plotter with trame using the captured mode by default."""
         kwargs.setdefault('mode', _mode)
         return show_trame(plotter, **kwargs)
 

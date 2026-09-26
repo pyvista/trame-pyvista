@@ -9,60 +9,49 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import pyvista as pv
 from pyvista import examples
-from trame.app import get_server
-from trame.ui.vuetify3 import SinglePageLayout
-from trame.widgets import vuetify3
+from trame.app import TrameApp
+from trame.decorators import change
+from trame.ui.vuetify3 import VAppLayout
+from trame.widgets import vuetify3 as v3
 
 from trame_pyvista.ui import plotter_ui
 
 pv.OFF_SCREEN = True
 
-server = get_server(client_type='vue3')
-state, ctrl = server.state, server.controller
 
-state.trame__title = 'PyVista UI Template'
+class Viewer(TrameApp):
+    def __init__(self, server=None):
+        super().__init__(server)
 
-# -----------------------------------------------------------------------------
+        # VTK/PyVista
+        mesh = examples.load_random_hills()
+        self.pl = pv.Plotter()
+        self.actor = self.pl.add_mesh(mesh, cmap='viridis')
 
-mesh = examples.load_random_hills()
+        # UI
+        self.state.trame__title = 'PyVista UI Template'
+        with VAppLayout(self.server) as self.ui:
+            self.ctrl.view_update = plotter_ui(self.pl).update
 
-pl = pv.Plotter()
-actor = pl.add_mesh(mesh, cmap='viridis')
+            v3.VSelect(
+                label='Color map',
+                v_model=('cmap', 'viridis'),
+                items=('array_list', plt.colormaps()),
+                density='compact',
+                variant='outlined',
+                style='position:absolute;top:1rem;right:1rem;width: 250px;',
+            )
+
+    @change('cmap')
+    def update_cmap(self, cmap='viridis', **_):
+        self.actor.mapper.lookup_table.cmap = cmap
+        self.ctrl.view_update()
 
 
-@state.change('cmap')
-def update_cmap(cmap='viridis', **kwargs):
-    actor.mapper.lookup_table.cmap = cmap
-    ctrl.view_update()
+def main():
+    app = Viewer()
+    app.server.start()
 
 
-# -----------------------------------------------------------------------------
-# GUI
-# -----------------------------------------------------------------------------
-
-with SinglePageLayout(server) as layout:
-    layout.icon.click = ctrl.view_reset_camera
-    layout.title.set_text('PyVista Colormaps')
-
-    with layout.toolbar:
-        vuetify3.VSpacer()
-        vuetify3.VSelect(
-            label='Color map',
-            v_model=('cmap', 'viridis'),
-            items=('array_list', plt.colormaps()),
-            hide_details=True,
-            density='compact',
-            outlined=True,
-            classes='pt-1 ml-2',
-            style='max-width: 250px',
-        )
-
-    with layout.content:
-        # Use PyVista UI template for Plotters
-        view = plotter_ui(pl)
-        ctrl.view_update = view.update
-
-    # hide footer
-    layout.footer.hide()
-
-server.start()
+if __name__ == '__main__':
+    main()

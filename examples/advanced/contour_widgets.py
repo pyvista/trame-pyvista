@@ -5,10 +5,9 @@ from pyvista import examples
 from trame.app import TrameApp
 from trame.decorators import change
 from trame.ui.vuetify3 import VAppLayout
+from trame.widgets import pyvista as pvw
 from trame.widgets import vuetify3 as v3
 from vtkmodules.vtkFiltersCore import vtkContourFilter
-
-from trame_pyvista.ui import plotter_ui
 
 pv.OFF_SCREEN = True
 
@@ -16,10 +15,8 @@ pv.OFF_SCREEN = True
 class ContourViewer(TrameApp):
     def __init__(self, server=None):
         super().__init__(server)
-
-        # extract mode
         self.server.cli.add_argument(
-            '--mode', choices=['trame', 'client', 'server', 'wasm'], default='trame'
+            '--mode', choices=['trame', 'client', 'server', 'wasm'], default='server'
         )
         args, _ = self.server.cli.parse_known_args()
         self.mode = args.mode
@@ -60,7 +57,7 @@ class ContourViewer(TrameApp):
         elif self.mode == 'trame':
             self.ctx.view.update_image()
         elif self.mode == 'wasm':
-            self.ctx.view.update_throttle()
+            self.ctx.view.render()
 
     def start_animation(self):
         if self.mode == 'server':
@@ -76,7 +73,16 @@ class ContourViewer(TrameApp):
         self.state.trame__title = 'Contour'
         with VAppLayout(self.server) as self.ui:
             with v3.VMain():
-                plotter_ui(self.pl, mode=self.mode, ctx_name='view')
+                if self.mode == 'server':
+                    pvw.PyVistaRemoteView(self.pl, ctx_name='view')
+                elif self.mode == 'client':
+                    pvw.PyVistaLocalView(self.pl, ctx_name='view')
+                elif self.mode == 'trame':
+                    pvw.PyVistaRemoteLocalView(self.pl, ctx_name='view')
+                elif self.mode == 'wasm':
+                    pvw.PyVistaWasmView(self.pl, ctx_name='view', config=["{mode: 'wasm64'}"])
+                else:
+                    pvw.PyVistaRemoteView(self.pl, ctx_name='view')
             with v3.VFooter(app=True):
                 v3.VProgressLinear(
                     indeterminate=True,
@@ -93,6 +99,12 @@ class ContourViewer(TrameApp):
                     density='compact',
                     start=self.start_animation,
                     end=self.stop_animation,
+                )
+                v3.VBtn(
+                    icon='mdi-crop-free',
+                    click=self.ctx.view.reset_camera,
+                    classes='rounded',
+                    flat=True,
                 )
 
 

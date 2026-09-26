@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -202,12 +203,31 @@ def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **k
     html_widgets.initialize(server)
     vtk_widgets.initialize(server)
 
+    # Try to load trame-vtklocal if available
+    with contextlib.suppress(ImportError):
+        from trame.widgets import vtklocal
+
+        vtklocal.initialize(server)
+
+    # Try to load trame-dataclass if available
+    with contextlib.suppress(ImportError):
+        from trame.widgets import dataclass
+
+        dataclass.initialize(server)
+
+    # Try to load trame-rca if available
+    with contextlib.suppress(ImportError):
+        from trame.widgets import rca
+
+        rca.initialize(server)
+
     if server.client_type == 'vue2':
         vuetify2_widgets.initialize(server)
     else:
         vuetify3_widgets.initialize(server)
 
     def on_ready(**_):
+        """Log that the server is ready."""
         logger.debug(f'Server ready: {server}')
 
     if server._running_stage == 0:
@@ -498,6 +518,7 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
         raise ImportError(msg)
 
     async def launch_it():
+        """Launch the server and wait until it is ready."""
         await launch_server(*args, **kwargs).ready
 
     # Basically monkey patches asyncio to support this

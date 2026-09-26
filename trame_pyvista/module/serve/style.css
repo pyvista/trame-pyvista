@@ -1,0 +1,6 @@
+.pyvista-client-server {display:grid;height: 100%}
+.pyvista-client-server > * {grid-area:1/1}
+.pyvista-client-server .fade-enter-active,.pyvista-client-server .fade-leave-active {transition:opacity 1s ease}
+.pyvista-client-server .fade-enter-from {opacity:0}
+.pyvista-client-server .fade-leave-to {opacity:0.9}
+.pyvista-client-server .toggle {position:absolute;right:1rem;bottom:0}
