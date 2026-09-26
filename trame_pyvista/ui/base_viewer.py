@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 import pyvista as pv
 from trame.app import get_server
-from trame.widgets.vtk import VtkLocalView
 
 if TYPE_CHECKING:
     from trame_client.ui.core import AbstractLayout
@@ -279,9 +278,8 @@ class BaseViewer:
             # Class lookup skips the trame-client element __getattr__
             if callable(getattr(type(view), 'set_widgets', None)):
                 view.set_widgets(widgets)
-            # VtkLocalView.set_widgets already pushes the full scene
-            if not isinstance(view, VtkLocalView):
-                view.update()
+        # set_widgets pushes the geometry; update_image refreshes server-rendered images
+        self.update_image()
 
     def on_rendering_mode_change(self, **kwargs):
         """Handle any configurations when the render mode changes between client and server.

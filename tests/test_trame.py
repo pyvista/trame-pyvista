@@ -629,9 +629,22 @@ def test_axis_visibility_registers_axes_widgets(mode, view_cls, monkeypatch: pyt
     assert calls == [widgets]
 
 
-@pytest.mark.parametrize('mode', ['client', 'trame', 'server'])
-def test_axis_visibility_updates_each_view_once(mode, monkeypatch: pytest.MonkeyPatch):
-    """Toggling the axes updates each view exactly once."""
+@pytest.mark.parametrize(
+    ('mode', 'patched', 'expected'),
+    [
+        ('client', ['update'], ['update']),
+        (
+            'trame',
+            ['update', 'update_geometry', 'update_image'],
+            ['update_geometry', 'update_image'],
+        ),
+        ('server', ['update'], ['update']),
+    ],
+)
+def test_axis_visibility_pushes_each_view_once(
+    mode, patched, expected, monkeypatch: pytest.MonkeyPatch
+):
+    """Toggling the axes sends each view's scene and image to the client once."""
     name = pv.global_theme.trame.jupyter_server_name
     elegantly_launch(name)
     server = get_server(name=name)
@@ -641,9 +654,17 @@ def test_axis_visibility_updates_each_view_once(mode, monkeypatch: pytest.Monkey
     viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
     (view,) = viewer.views
     calls = []
-    monkeypatch.setattr(view, 'update', lambda *args, **kwargs: calls.append(1))
+    for name in patched:
+        method = getattr(view, name)
+
+        def record(*args, _name=name, _method=method, **kwargs):
+            """Record the call and forward it."""
+            calls.append(_name)
+            return _method(*args, **kwargs)
+
+        monkeypatch.setattr(view, name, record)
     viewer.on_axis_visibility_change(**{viewer.AXIS: True})
-    assert len(calls) == 1
+    assert calls == expected
 
 
 def test_axis_visibility_remote_view_has_no_widgets(capsys: pytest.CaptureFixture[str]):
