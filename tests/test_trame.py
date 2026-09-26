@@ -593,40 +593,46 @@ def test_sphinx_ext_setup():
     assert meta['parallel_read_safe']
 
 
-def test_axis_visibility_syncs_local_view_widgets():
+def _axis_viewer(pl, mode):
+    """Build a single-view UI for ``pl`` and return its viewer and view."""
     name = pv.global_theme.trame.jupyter_server_name
     elegantly_launch(name)
     server = get_server(name=name)
-    pl = pv.Plotter(notebook=True)
     pl.add_mesh(pv.Sphere())
-    plotter_ui(pl, mode='client', server=server)
-    viewer = get_viewer(pl, suppress_rendering=True)
-    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
-    assert pl.renderer.axes_widget is not None
-    viewer.on_axis_visibility_change(**{viewer.AXIS: False})
+    plotter_ui(pl, mode=mode, server=server)
+    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
+    (view,) = viewer.views
+    return viewer, view
 
 
 @pytest.mark.parametrize(
     ('mode', 'view_cls'), [('client', PyVistaLocalView), ('trame', PyVistaRemoteLocalView)]
 )
 def test_axis_visibility_registers_axes_widgets(mode, view_cls, monkeypatch: pytest.MonkeyPatch):
-    """Showing the axes passes every renderer's axes widget to the view's set_widgets."""
-    name = pv.global_theme.trame.jupyter_server_name
-    elegantly_launch(name)
-    server = get_server(name=name)
+    """Toggling the axes passes every renderer's axes widget to the view's set_widgets."""
     pl = pv.Plotter(notebook=True, shape=(1, 2))
-    pl.add_mesh(pv.Sphere())
-    plotter_ui(pl, mode=mode, server=server)
-    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
-    (view,) = viewer.views
+    viewer, view = _axis_viewer(pl, mode)
     assert type(view) is view_cls
     calls = []
     monkeypatch.setattr(view, 'set_widgets', calls.append)
     viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    viewer.on_axis_visibility_change(**{viewer.AXIS: False})
     widgets = [ren.axes_widget for ren in pl.renderers]
     assert len(widgets) == 2
     assert None not in widgets
-    assert calls == [widgets]
+    assert calls == [widgets, widgets]
+
+
+def test_axis_visibility_skips_renderers_without_axes(monkeypatch: pytest.MonkeyPatch):
+    """Renderers that never showed axes contribute no widget."""
+    pl = pv.Plotter(notebook=True, shape=(1, 2))
+    pl.renderers[0].show_axes()
+    viewer, view = _axis_viewer(pl, 'client')
+    calls = []
+    monkeypatch.setattr(view, 'set_widgets', calls.append)
+    viewer.on_axis_visibility_change(**{viewer.AXIS: False})
+    assert pl.renderers[1].axes_widget is None
+    assert calls == [[pl.renderers[0].axes_widget]]
 
 
 @pytest.mark.parametrize(
@@ -645,14 +651,7 @@ def test_axis_visibility_pushes_each_view_once(
     mode, patched, expected, monkeypatch: pytest.MonkeyPatch
 ):
     """Toggling the axes sends each view's scene and image to the client once."""
-    name = pv.global_theme.trame.jupyter_server_name
-    elegantly_launch(name)
-    server = get_server(name=name)
-    pl = pv.Plotter(notebook=True)
-    pl.add_mesh(pv.Sphere())
-    plotter_ui(pl, mode=mode, server=server)
-    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
-    (view,) = viewer.views
+    viewer, view = _axis_viewer(pv.Plotter(notebook=True), mode)
     calls = []
     for name in patched:
         method = getattr(view, name)
@@ -669,14 +668,7 @@ def test_axis_visibility_pushes_each_view_once(
 
 def test_axis_visibility_remote_view_has_no_widgets(capsys: pytest.CaptureFixture[str]):
     """Toggling the axes on a server-rendered view reports no missing attribute."""
-    name = pv.global_theme.trame.jupyter_server_name
-    elegantly_launch(name)
-    server = get_server(name=name)
-    pl = pv.Plotter(notebook=True)
-    pl.add_mesh(pv.Sphere())
-    plotter_ui(pl, mode='server', server=server)
-    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
-    (view,) = viewer.views
+    viewer, view = _axis_viewer(pv.Plotter(notebook=True), 'server')
     assert type(view) is PyVistaRemoteView
     capsys.readouterr()
     viewer.on_axis_visibility_change(**{viewer.AXIS: True})
