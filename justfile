@@ -18,7 +18,7 @@ test *args:
 # Run integration tests (Playwright)
 test-playwright *args:
     uv run playwright install --with-deps chromium
-    uv run pytest tests/ --playwright -m needs_playwright {{ args }}
+    uv run pytest tests/ --playwright -m needs_playwright --cov {{ args }}
 
 # Type check
 typecheck:
