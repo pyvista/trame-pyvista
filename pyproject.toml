@@ -41,13 +41,12 @@ dependencies = [
 jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
 sphinx = ['docutils', 'sphinx']
 test = [
-  'numpy<2.5',       # Temp pin until VTK 9.7 is supported to avoid noisy shape deprecation warnings
+  'numpy<2.5',             # Temp pin until VTK 9.7 is supported to avoid noisy shape deprecation warnings
   'ipython',
   'ipywidgets',
   'nest-asyncio2',
   'pytest>=8.0',
-  'coverage>=7.10',
-  'pytest-cov>=5.0',
+  'pytest-cov>=7.0',
   'trame-pyvista[sphinx]',
 ]
 playwright = [
