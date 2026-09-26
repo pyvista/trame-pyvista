@@ -44,6 +44,16 @@ repos:
     rev: v0.9.3
     hooks:
       - id: taplo-format
+        # See options: https://taplo.tamasfe.dev/configuration/formatter-options.html
+        args:
+          [
+            --option,
+            "reorder_arrays=true",
+            --option,
+            "reorder_keys=true",
+            --option,
+            "align_comments=false",
+          ]
 
   - repo: local
     hooks:

@@ -3,20 +3,13 @@ build-backend = 'setuptools.build_meta'
 requires = ['setuptools>=64', 'setuptools_scm>=8']
 
 [project]
-name = 'trame-pyvista'
-dynamic = ['version']
-description = 'Trame interface for PyVista'
-readme = 'README.md'
-license = 'MIT'
-requires-python = '>=3.10'
 authors = [{ name = 'The PyVista Developers', email = 'info@pyvista.org' }]
-keywords = ['vtk', 'trame', 'pyvista', 'jupyter', 'visualization']
 classifiers = [
   'Development Status :: 4 - Beta',
   'Intended Audience :: Science/Research',
   'Operating System :: MacOS',
-  'Operating System :: POSIX :: Linux',
   'Operating System :: Microsoft :: Windows',
+  'Operating System :: POSIX :: Linux',
   'Programming Language :: Python :: 3',
   'Programming Language :: Python :: 3.10',
   'Programming Language :: Python :: 3.11',
@@ -24,31 +17,32 @@ classifiers = [
   'Programming Language :: Python :: 3.13',
   'Topic :: Scientific/Engineering :: Visualization',
 ]
-dependencies = [
+dependencies = [ # trame bounds: trame-floor and test CI jobs pass
   'pyvista>=0.48',
-  # Every trame release is gated behind CI: the floor is the oldest set the
-  # `trame-floor` job passes on and the ceiling is the newest set `test` passes on.
-  'trame>=3.9.1,<4.0.1',
   'trame-client>=3.10,<4.1.1',
   'trame-common>=1.2.4,<1.2.8',
   'trame-server>=3.9,<4.0.1',
   'trame-vtk>=2.11.16,<2.11.18',
   'trame-vuetify>=3.2.5,<3.2.7',
+  'trame>=3.9.1,<4.0.1',
   'wslink>=2.5,<2.5.8',
 ]
+description = 'Trame interface for PyVista'
+dynamic = ['version']
+keywords = ['jupyter', 'pyvista', 'trame', 'visualization', 'vtk']
+license = 'MIT'
+name = 'trame-pyvista'
+readme = 'README.md'
+requires-python = '>=3.10'
 
 [project.optional-dependencies]
-jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
-sphinx = ['docutils', 'sphinx']
-test = [
-  'numpy<2.5',       # Temp pin until VTK 9.7 is supported to avoid noisy shape deprecation warnings
-  'ipython',
-  'ipywidgets',
-  'nest-asyncio2',
-  'pytest>=8.0',
-  'pytest-cov>=5.0',
-  'trame-pyvista[sphinx]',
+dev = [
+  'mypy>=1.10',
+  'pre-commit',
+  'ruff==0.16.8',
+  'trame-pyvista[jupyter,sphinx,test,playwright]',
 ]
+jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
 playwright = [
   'matplotlib',
   'numpydoc',
@@ -58,11 +52,15 @@ playwright = [
   'sphinx-design',
   'sphinx-gallery',
 ]
-dev = [
-  'mypy>=1.10',
-  'pre-commit',
-  'ruff==0.16.8',
-  'trame-pyvista[jupyter,sphinx,test,playwright]',
+sphinx = ['docutils', 'sphinx']
+test = [
+  'ipython',
+  'ipywidgets',
+  'nest-asyncio2',
+  'numpy<2.5', # noisy shape deprecations until VTK 9.7
+  'pytest-cov>=5.0',
+  'pytest>=8.0',
+  'trame-pyvista[sphinx]',
 ]
 
 [project.urls]
@@ -83,11 +81,11 @@ Repository = 'https://github.com/pyvista/trame-pyvista'
 # names; at that point the alias will become redundant but remains
 # harmless.
 [project.entry-points.'pyvista.jupyter_backends']
-trame-pyvista = 'trame_pyvista.jupyter:show_trame'
-trame = 'trame_pyvista.jupyter:show_trame'
-server = 'trame_pyvista.jupyter:show_trame'
 client = 'trame_pyvista.jupyter:show_trame'
 html = 'trame_pyvista.jupyter:show_trame'
+server = 'trame_pyvista.jupyter:show_trame'
+trame = 'trame_pyvista.jupyter:show_trame'
+trame-pyvista = 'trame_pyvista.jupyter:show_trame'
 
 # Plotter component plugin: importing this module registers the ``trame``
 # namespace on ``pyvista.BasePlotter`` (e.g. ``plotter.trame.export_vtksz``).
@@ -95,25 +93,24 @@ html = 'trame_pyvista.jupyter:show_trame'
 trame = 'trame_pyvista.components'
 
 [tool.setuptools.packages.find]
+include = ['trame*', 'trame_pyvista*']
 where = ['.']
-include = ['trame_pyvista*', 'trame*']
 
 [tool.setuptools.package-data]
 trame_pyvista = ['py.typed']
 
 [tool.setuptools_scm]
-write_to = 'trame_pyvista/_version.py'
 version_scheme = 'release-branch-semver'
+write_to = 'trame_pyvista/_version.py'
 
 [tool.ruff]
+extend-exclude = [
+  'tests/tinypages',
+  'trame/widgets/__init__.py', # byte-for-byte upstream trame copy
+  'trame_pyvista/_version.py',
+]
 line-length = 99
 src = ['.']
-extend-exclude = [
-  'trame_pyvista/_version.py',
-  'tests/tinypages',
-  # Byte-for-byte match upstream trame namespace contributors
-  'trame/widgets/__init__.py',
-]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -149,41 +146,41 @@ extend-select = [
   'YTT',
 ]
 ignore = [
-  'D107',   # Missing docstring in __init__
-  'D203',   # one-blank-line-before-class
-  'D213',   # multi-line-summary-second-line
+  'D107', # Missing docstring in __init__
+  'D203', # one-blank-line-before-class
+  'D213', # multi-line-summary-second-line
   'SIM117', # Trame UI builders rely on nested `with` blocks for layout
 ]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-force-sort-within-sections = true
 force-single-line = true
-required-imports = ['from __future__ import annotations']
+force-sort-within-sections = true
 known-first-party = ['trame_pyvista']
 known-third-party = ['trame']
+required-imports = ['from __future__ import annotations']
 
 [tool.ruff.lint.per-file-ignores]
 '__init__.py' = ['E402', 'F401', 'PLC0414']
-'trame/widgets/__init__.py' = ['D104', 'I002', 'Q000']
 'examples/**' = ['D', 'E501', 'INP001', 'T20']
 'tests/**' = ['B018', 'D', 'INP001', 'S101', 'T20']
-'trame_pyvista/ui/**' = ['D101', 'D102', 'D103', 'E501']
+'trame/widgets/__init__.py' = ['D104', 'I002', 'Q000']
 'trame_pyvista/jupyter.py' = ['B904']
+'trame_pyvista/ui/**' = ['D101', 'D102', 'D103', 'E501']
 
 [tool.ruff.lint.pydocstyle]
 convention = 'numpy'
 
 [tool.pytest.ini_options]
-testpaths = ['tests']
 addopts = '-ra --tb=short'
-markers = ['needs_playwright: requires playwright (run with --playwright)']
 filterwarnings = [
   'error',
   'ignore::ResourceWarning',
   'ignore:Call to deprecated method.*:DeprecationWarning',
   'ignore:It is recommended to use web\.AppKey instances.*:',
 ]
+markers = ['needs_playwright: requires playwright (run with --playwright)']
+testpaths = ['tests']
 
 [tool.coverage.run]
 branch = true
@@ -191,18 +188,18 @@ source = ['trame_pyvista']
 
 [tool.coverage.report]
 exclude_lines = [
-  'pragma: no cover',
   'if TYPE_CHECKING:',
+  'pragma: no cover',
   'raise NotImplementedError',
 ]
 
 [tool.mypy]
-python_version = '3.10'
-ignore_missing_imports = true
-files = ['trame_pyvista']
 disable_error_code = ['import-untyped']
+files = ['trame_pyvista']
+ignore_missing_imports = true
+python_version = '3.10'
 
 [[tool.mypy.overrides]]
-module = ['docutils.*', 'sphinx.*', 'trame.widgets.*']
 follow_imports = 'skip'
 ignore_errors = true
+module = ['docutils.*', 'sphinx.*', 'trame.widgets.*']
