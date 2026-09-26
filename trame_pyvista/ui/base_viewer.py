@@ -257,7 +257,7 @@ class BaseViewer:
         self.update()
 
     def on_axis_visibility_change(self, **kwargs):
-        """Handle outline visibility.
+        """Handle axes visibility.
 
         Parameters
         ----------
