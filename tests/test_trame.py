@@ -606,21 +606,44 @@ def test_axis_visibility_syncs_local_view_widgets():
     viewer.on_axis_visibility_change(**{viewer.AXIS: False})
 
 
-def test_axis_visibility_registers_axes_widget(monkeypatch: pytest.MonkeyPatch):
-    """Showing the axes passes the axes widget to the local view's set_widgets."""
+@pytest.mark.parametrize(
+    ('mode', 'view_cls'), [('client', PyVistaLocalView), ('trame', PyVistaRemoteLocalView)]
+)
+def test_axis_visibility_registers_axes_widgets(mode, view_cls, monkeypatch: pytest.MonkeyPatch):
+    """Showing the axes passes every renderer's axes widget to the view's set_widgets."""
+    name = pv.global_theme.trame.jupyter_server_name
+    elegantly_launch(name)
+    server = get_server(name=name)
+    pl = pv.Plotter(notebook=True, shape=(1, 2))
+    pl.add_mesh(pv.Sphere())
+    plotter_ui(pl, mode=mode, server=server)
+    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
+    (view,) = viewer.views
+    assert type(view) is view_cls
+    calls = []
+    monkeypatch.setattr(view, 'set_widgets', calls.append)
+    viewer.on_axis_visibility_change(**{viewer.AXIS: True})
+    widgets = [ren.axes_widget for ren in pl.renderers]
+    assert len(widgets) == 2
+    assert None not in widgets
+    assert calls == [widgets]
+
+
+def test_axis_visibility_remote_view_has_no_widgets(capsys: pytest.CaptureFixture[str]):
+    """Toggling the axes on a server-rendered view neither fails nor reports a missing attribute."""
     name = pv.global_theme.trame.jupyter_server_name
     elegantly_launch(name)
     server = get_server(name=name)
     pl = pv.Plotter(notebook=True)
     pl.add_mesh(pv.Sphere())
-    plotter_ui(pl, mode='client', server=server)
-    viewer = get_viewer(pl, suppress_rendering=True)
+    plotter_ui(pl, mode='server', server=server)
+    viewer = get_viewer(pl, suppress_rendering=pl.suppress_rendering)
     (view,) = viewer.views
-    assert isinstance(view, PyVistaLocalView)
-    calls = []
-    monkeypatch.setattr(view, 'set_widgets', calls.append)
+    assert type(view) is PyVistaRemoteView
+    capsys.readouterr()
     viewer.on_axis_visibility_change(**{viewer.AXIS: True})
-    assert calls == [[pl.renderer.axes_widget]]
+    viewer.on_axis_visibility_change(**{viewer.AXIS: False})
+    assert capsys.readouterr().out == ''
 
 
 @pytest.mark.parametrize('view_cls', [PyVistaLocalView, PyVistaRemoteLocalView])
