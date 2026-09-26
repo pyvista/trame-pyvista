@@ -29,7 +29,7 @@ dependencies = [
   # Every trame release is gated behind CI: the floor is the oldest set the
   # `trame-floor` job passes on and the ceiling is the newest set `test` passes on.
   'trame>=3.9.1,<4.0.1',
-  'trame-client>=3.9.2,<4.1.1',
+  'trame-client>=3.10,<4.1.1',
   'trame-common>=1.2.4,<1.2.8',
   'trame-server>=3.9,<4.0.1',
   'trame-vtk>=2.11.16,<2.11.18',
