@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC
 from abc import abstractmethod
 import io
+import mimetypes
 from pathlib import Path
 import sys
 import tempfile
@@ -380,7 +381,7 @@ class _BaseView(ABC):
         """Register widgets if needed per concrete implementation."""
 
     def _export_html(self, mode='wasm32', rendering='webgl'):
-        """Export scene to HTML as StringIO buffer."""
+        """Return the scene as a self-contained VTK.wasm HTML page in bytes."""
         from trame_vtklocal.utils import exporter
 
         vtk_objects = [
@@ -394,7 +395,7 @@ class _BaseView(ABC):
         )
 
     def _export_data(self):
-        """Export scene to ``wazex`` format (vtk-wasm) as StringIO buffer."""
+        """Return the scene in ``wazex`` format (vtk-wasm) as bytes."""
         from trame_vtklocal.utils import exporter
 
         vtk_objects = [
@@ -467,8 +468,9 @@ class PyVistaWasmView(vtklocal.LocalView, _BaseView):  # type: ignore[misc]
         self.update_throttle()
 
     def _export_screenshot(self, filename):
-        ext = Path(filename).suffix
-        return self.download_screenshot(filename, f'image/{ext}')
+        """Make the web client download a screenshot in the format ``filename`` implies."""
+        mime, _ = mimetypes.guess_type(filename)
+        return self.download_screenshot(filename, mime or 'image/png')
 
     # -----------------------------------------------------------
     # Legacy API for compatibility - do not use in your code

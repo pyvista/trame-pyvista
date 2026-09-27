@@ -108,9 +108,9 @@ class PlotterState(dataclass.StateDataModel):
             return
 
         iren = self.plotter.iren
-        if iren is not None and hasattr(iren, 'SetTrackInteractorObserverInstances'):
+        if iren is not None and hasattr(iren.interactor, 'SetTrackInteractorObserverInstances'):
             self.need_register_widgets = False
-            iren.SetTrackInteractorObserverInstances(1)
+            iren.interactor.SetTrackInteractorObserverInstances(1)
         else:
             self.need_register_widgets = True
 
@@ -126,15 +126,6 @@ class PlotterState(dataclass.StateDataModel):
         self.show_orientation_axis = any(
             ren.axes_widget is not None for ren in self.plotter.renderers
         )
-
-        # remove/add widgets to make sure they are tracked
-        if self.show_orientation_axis:
-            self._update_orientation_axis(False)
-            self._update_orientation_axis(True)
-
-        if self.show_axis_grid:
-            self._update_axis_grid(False)
-            self._update_axis_grid(True)
 
         self.skip_render = False
 

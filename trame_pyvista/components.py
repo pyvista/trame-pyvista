@@ -105,19 +105,19 @@ class TrameComponent:
     def export_wazex(
         self,
         filename: str | Path | None = 'scene-export.wazex',
-    ) -> str | Path | bytes:
+    ) -> Path | bytes:
         """Export the scene as a VTK-wasm data file for its offline Viewer.
 
         Parameters
         ----------
-        filename : str | Path | None, optional
-        Destination path. If ``None``, return the encoded bytes.
+        filename : str | Path | None, default: 'scene-export.wazex'
+            Destination path. If ``None``, return the encoded bytes.
 
         Returns
         -------
-        str | Path | bytes
-        The destination path, or the raw bytes when ``filename`` is
-        ``None``.
+        Path | bytes
+            The destination path, or the raw bytes when ``filename`` is
+            ``None``.
 
         """
         from trame_vtklocal.utils import exporter
@@ -134,26 +134,25 @@ class TrameComponent:
 
     def export_wasm_html(
         self, filename: str | Path | None, mode: str = 'wasm32', rendering: str = 'webgl'
-    ) -> io.StringIO | None:
+    ) -> Path | bytes:
         """Export the scene as a self-contained HTML file using vtk-wasm viewer.
 
         Parameters
         ----------
         filename : str | Path | None
-            Destination path. If ``None``, return the HTML as a
-            ``StringIO`` buffer.
+            Destination path. If ``None``, return the encoded HTML.
 
-        mode: str = wasm32
-            Choose between `wasm32` or `wasm64` for the viewer.
+        mode : str, default: 'wasm32'
+            Choose between ``'wasm32'`` or ``'wasm64'`` for the viewer.
 
-        rendering: str = webgl
-            Choose between `webgl` or `webgpu` for the viewer.
+        rendering : str, default: 'webgl'
+            Choose between ``'webgl'`` or ``'webgpu'`` for the viewer.
 
         Returns
         -------
-        io.StringIO | None
-            The HTML buffer when ``filename`` is ``None``, otherwise
-            ``None`` after writing the file.
+        Path | bytes
+            The destination path, or the HTML bytes when ``filename`` is
+            ``None``.
 
         """
         from trame_vtklocal.utils import exporter
@@ -195,7 +194,7 @@ class TrameComponent:
         -------
         A trame application for your plotter that can be displayed in Jupyter by
         simply returning it. But keeping a reference to it, allow you to also control it
-        programatically.
+        programmatically.
 
         """
         from trame_pyvista.apps import create_application

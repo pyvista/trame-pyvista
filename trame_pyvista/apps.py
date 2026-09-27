@@ -89,6 +89,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
         self.server.enable_module(module)
         self._plotter = weakref.ref(plotter)
         self.view_wasm = None  # needs vtk>=9.7
+        self.RENDERING_MODE = f'{plotter._id_name}_rendering_mode'
 
         # Add warning since some capabilities are now hidden
         if not IS_WASM_SUPPORTED:
@@ -105,18 +106,18 @@ class SimpleViewer(TrameApp, widgets._BaseView):
                     # Local rendering component
                     if IS_WASM_SUPPORTED:
                         self.view_wasm = widgets.PyVistaWasmView(
-                            self.plotter, v_if="pyvista_rendering_mode == 'local'"
+                            self.plotter, v_if=f"{self.RENDERING_MODE} == 'local'"
                         )
 
                     # Remote rendering component
                     self.view_rca = widgets.PyVistaRCAView(
-                        self.plotter, v_if="pyvista_rendering_mode == 'remote'"
+                        self.plotter, v_if=f"{self.RENDERING_MODE} == 'remote'"
                     )
 
                 # Toggle for remote/local rendering
                 if IS_WASM_SUPPORTED:
                     v3.VSwitch(
-                        model_value=('pyvista_rendering_mode', mode),
+                        model_value=(self.RENDERING_MODE, mode),
                         hide_details=True,
                         inset=True,
                         true_value='remote',
@@ -126,7 +127,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
                         classes='toggle',
                         update_modelValue=self._toggle_rendering_mode,
                         v_tooltip_left=(
-                            "pyvista_rendering_mode === 'remote' "
+                            f"{self.RENDERING_MODE} === 'remote' "
                             "? 'Server side rendering' : 'Client side rendering'"
                         ),
                     )
@@ -140,7 +141,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
 
     def _toggle_rendering_mode(self):
         """Switch between local and remote rendering."""
-        if self.state.pyvista_rendering_mode == 'remote':
+        if self.state[self.RENDERING_MODE] == 'remote':
             self.use_local_rendering()
         else:
             self.use_remote_rendering()
@@ -148,7 +149,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
     def use_remote_rendering(self):
         """Switch to server side rendering."""
         self.controls._state.is_remote = True
-        self.state.pyvista_rendering_mode = 'remote'
+        self.state[self.RENDERING_MODE] = 'remote'
 
     def use_local_rendering(self):
         """Switch to client side rendering after syncing the scene."""
@@ -157,7 +158,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
 
         self.controls._state.is_remote = False
         self.view_wasm.update(push_camera=True)
-        self.state.pyvista_rendering_mode = 'local'
+        self.state[self.RENDERING_MODE] = 'local'
 
     @property
     def active_view(self):
@@ -165,7 +166,7 @@ class SimpleViewer(TrameApp, widgets._BaseView):
         if not IS_WASM_SUPPORTED:
             return self.view_rca
 
-        if self.state.pyvista_rendering_mode == 'remote':
+        if self.state[self.RENDERING_MODE] == 'remote':
             return self.view_rca
 
         return self.view_wasm
