@@ -162,6 +162,27 @@ def test_simple_viewer_without_wasm(plotter, vue3_server, monkeypatch):
     app._set_widgets([])
 
 
+def test_simple_viewer_theme_defaults_to_light(viewer):
+    assert '<VApp theme="light"' in viewer.ui.html
+
+
+def test_simple_viewer_theme(plotter, vue3_server):
+    app = _run(lambda: SimpleViewer(plotter, vue3_server, theme='dark'))
+    assert '<VApp theme="dark"' in app.ui.html
+
+
+def test_simple_viewer_vuetify_config(plotter, vue3_server):
+    config = {
+        'theme': {
+            'defaultTheme': 'pyvista',
+            'themes': {'pyvista': {'dark': False, 'colors': {'primary': '#1867C0'}}},
+        },
+    }
+    app = _run(lambda: SimpleViewer(plotter, vue3_server, theme='pyvista', vuetify_config=config))
+    assert '<VApp theme="pyvista"' in app.ui.html
+    assert app.state.trame__vuetify3_config == config
+
+
 def test_simple_viewers_keep_their_own_rendering_mode(vue3_server):
     first = _run(lambda: SimpleViewer(pv.Plotter(notebook=True), vue3_server))
     _run(first.use_remote_rendering)

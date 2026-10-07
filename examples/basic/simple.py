@@ -15,5 +15,5 @@ pl = pv.Plotter()
 pl.add_mesh(mesh)
 
 # Create viewer application and start it
-app = SimpleViewer(pl)
+app = SimpleViewer(pl, theme='light')  # theme can be set to 'light' or 'dark'
 app.server.start()

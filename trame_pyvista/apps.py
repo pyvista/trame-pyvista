@@ -81,9 +81,50 @@ class SimpleViewer(TrameApp, widgets._BaseView):
     mode : str, default: 'local'
         Initial rendering mode, either ``'local'`` or ``'remote'``.
 
+    theme : str, default: 'light'
+        Theme value passed to vuetify for driving the color set of toolbar,
+        toggle and tooltips.
+        The two available values by default are ``'light'`` and ``'dark'``,
+        but other values can be provided when a provided ``vuetify_config``
+        defined them.
+
+    vuetify_config : dict, default: None
+        Configuration structure to provide to vuetify for its initialization.
+        When you want to use it to define your own theme, you should provide
+        a structure like the following (see
+        https://v3.vuetifyjs.com/en/features/theme/#custom-themes for the
+        full list of colors and variables):
+
+        .. code-block:: python
+
+            {
+                'theme': {
+                    'defaultTheme': 'pyvista',
+                    'themes': {
+                        'pyvista': {
+                            'dark': False,
+                            'colors': {
+                                'background': '#FFFFFF',
+                                'surface': '#FFFFFF',
+                                'primary': '#1867C0',
+                                'secondary': '#48A9A6',
+                                'error': '#B00020',
+                            },
+                            'variables': {
+                                'border-color': '#000000',
+                                'border-opacity': 0.12,
+                                'hover-opacity': 0.04,
+                            },
+                        },
+                    },
+                },
+            }
+
+        Then pass ``theme='pyvista'`` to select it.
+
     """
 
-    def __init__(self, plotter, server=None, mode='local'):
+    def __init__(self, plotter, server=None, mode='local', theme='light', vuetify_config=None):
         widgets._BaseView.__init__(self, plotter)
         TrameApp.__init__(self, server)
         self.server.enable_module(module)
@@ -98,7 +139,13 @@ class SimpleViewer(TrameApp, widgets._BaseView):
             warnings.warn(widgets.UPDATE_VTK_FOR_WASM, stacklevel=2)
 
         # Define UI
-        with VAppLayout(self.server, full_height=True, height='100%') as self.ui:
+        with VAppLayout(
+            self.server,
+            full_height=True,
+            height='100%',
+            theme=theme,
+            vuetify_config=vuetify_config,
+        ) as self.ui:
             self.ui.iframe_attrs['class'] = 'trame-iframe'
 
             with html.Div(classes='pyvista-client-server'):

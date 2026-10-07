@@ -252,7 +252,7 @@ class PyVistaPlotterControls(dc.Provider):
     classes : str, optional
         CSS classes of the toolbar card.
 
-    variant : str, default: 'plain'
+    variant : str, default: 'flat'
         Vuetify variant of the toolbar card.
 
     **kwargs : dict, optional
@@ -265,8 +265,8 @@ class PyVistaPlotterControls(dc.Provider):
         view: _BaseView,
         *,
         style: str = 'position:absolute;top:1rem;left:1rem;z-index:10;',
-        classes: str = 'd-flex flex-row pa-1 border-thin bg-white',
-        variant: str = 'plain',
+        classes: str = 'd-flex flex-row pa-1 border-thin',
+        variant: str = 'flat',
         **kwargs: Any,
     ) -> None:
         super().__init__(name='plotter')
