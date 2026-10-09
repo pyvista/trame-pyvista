@@ -525,7 +525,7 @@ class PyVistaRCAView(rca.RemoteControlledArea, _BaseView):  # type: ignore[misc]
         )
         self.handler = self.create_view_handler(
             self.plotter.render_window,  # type: ignore[union-attr]
-            encoder='turbo-jpeg' if display == 'image' else None,
+            encoder='jpeg' if display == 'image' else None,
             target_fps=target_fps,
         )
 
