@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+from pathlib import Path
 import zipfile
 
 import pytest
@@ -66,7 +67,10 @@ def vue3_server():
 @pytest.fixture(scope='session')
 def wasm_bundle():
     """Download and unpack the VTK.wasm bundle once and return its archive path."""
-    return exporter.find_wasm('wasm32')
+    serve_path = Path(wasm.get_wasm_cache_directory(exporter.SERVE_PATH))
+    info = wasm.register_wasm(serve_path, wasm_bits='wasm32')
+    tgz_url = info['state']['__trame_vtklocal_wasm32']['tgz_url']
+    return serve_path / '/'.join(tgz_url.split('/')[1:])
 
 
 @pytest.fixture
@@ -495,7 +499,12 @@ def test_component_export_wazex(plotter, tmp_path):
 def test_component_export_wasm_html(plotter, wasm_bundle, tmp_path, monkeypatch):
     html = plotter.trame.export_wasm_html(None).decode()
     assert '"mode": "wasm32", "rendering": "webgl"' in html
-    monkeypatch.setattr(exporter, 'find_wasm', lambda wasm_bits: wasm_bundle)
+    if hasattr(exporter, 'get_wasm_archive'):  # trame-vtklocal >= 1.8
+        monkeypatch.setattr(
+            exporter, 'get_wasm_archive', lambda wasm_bits: wasm_bundle.read_bytes()
+        )
+    else:
+        monkeypatch.setattr(exporter, 'find_wasm', lambda wasm_bits: wasm_bundle)
     path = plotter.trame.export_wasm_html(tmp_path / 'scene.html', 'wasm64', 'webgpu')
     assert '"mode": "wasm64", "rendering": "webgpu"' in path.read_text()
 
