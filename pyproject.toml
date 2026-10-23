@@ -64,6 +64,7 @@ test = [
   'numpy<2.5', # noisy shape deprecations until VTK 9.7
   'pytest-cov>=7.0',
   'pytest>=8.0',
+  'refleak>=0.2.2',
   'trame-pyvista[sphinx]',
 ]
 
