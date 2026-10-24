@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 from pathlib import Path
 import subprocess
@@ -96,6 +97,50 @@ def test_launch_server_with_jupyter_kernel_argv():
         env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_import_without_rca_or_vtklocal():
+    """Importing the package loads neither trame-rca nor trame-vtklocal, both fail on VTK < 9.4."""
+    code = (
+        'import sys\n'
+        "sys.modules['trame_rca.rca'] = None\n"
+        "sys.modules['trame_vtklocal.module'] = None\n"
+        'import trame_pyvista, trame.widgets.pyvista, trame_pyvista.apps\n'
+        "assert 'trame.widgets.rca' not in sys.modules\n"
+        "assert 'trame.widgets.vtklocal' not in sys.modules\n"
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    ('name', 'module'),
+    [('PyVistaRCAView', 'rca_view'), ('PyVistaWasmView', 'wasm_view')],
+)
+def test_lazy_view_attribute(name, module):
+    """The VTK >= 9.4 views resolve lazily from both public modules."""
+    pytest.importorskip('vtkmodules.vtkSerializationManager')
+    from trame.widgets import pyvista as trame_pyvista_widgets
+
+    from trame_pyvista import widgets
+
+    view_cls = getattr(importlib.import_module(f'trame_pyvista.{module}'), name)
+    assert getattr(widgets, name) is view_cls
+    assert getattr(trame_pyvista_widgets, name) is view_cls
+
+
+def test_lazy_view_missing_attribute():
+    from trame_pyvista import widgets
+
+    with pytest.raises(AttributeError, match='no attribute'):
+        _ = widgets.missing
 
 
 def test_export_html_embeds_viewer_and_scene():

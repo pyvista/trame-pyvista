@@ -8,8 +8,13 @@ import subprocess
 import sys
 
 import pytest
+import pyvista as pv
 
 EXAMPLES_DIR = Path(__file__).parent.parent / 'examples'
+
+pytestmark = pytest.mark.skipif(
+    pv.vtk_version_info < (9, 4), reason='the examples use VTK >= 9.4 APIs and trame-rca'
+)
 
 
 def _collect() -> list[str]:

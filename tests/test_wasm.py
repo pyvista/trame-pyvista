@@ -22,7 +22,6 @@ from trame_pyvista.jupyter import elegantly_launch
 from trame_pyvista.ui import get_viewer
 from trame_pyvista.ui import plotter_ui
 from trame_pyvista.vue3_widgets import get_plotter_state
-from trame_pyvista.widgets import PyVistaRCAView
 from trame_pyvista.widgets import PyVistaWasmView
 from trame_pyvista.widgets import get_server
 
@@ -458,7 +457,7 @@ def test_wasm_view_exports(plotter, vue3_server):
 
 
 def test_rca_view(plotter, vue3_server, monkeypatch):
-    view = PyVistaRCAView(plotter, trame_server=vue3_server, target_fps=30)
+    view = widgets.PyVistaRCAView(plotter, trame_server=vue3_server, target_fps=30)
     assert view.target_fps == 30
     view.target_fps = 10
     assert view.target_fps == 10

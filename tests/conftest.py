@@ -7,6 +7,9 @@ import pyvista as pv
 
 pv.OFF_SCREEN = True
 
+# trame-vtklocal, imported by test_wasm.py, fails to import below VTK 9.4
+collect_ignore = [] if pv.vtk_version_info >= (9, 4) else ['test_wasm.py']
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(

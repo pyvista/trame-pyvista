@@ -16,7 +16,6 @@ from trame.widgets import vuetify3 as vuetify
 from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
-from trame_pyvista.widgets import PyVistaWasmView
 
 from .base_viewer import BaseViewer
 
@@ -355,6 +354,8 @@ class Viewer(BaseViewer):
             elif mode == 'client':
                 view = PyVistaLocalView(self.plotter, **kwargs)
             elif mode == 'wasm':
+                from trame_pyvista.wasm_view import PyVistaWasmView
+
                 view = PyVistaWasmView(self.plotter, **kwargs)
 
             self._html_views.add(view)

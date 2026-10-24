@@ -133,6 +133,25 @@ jobs:
       - run: uv run playwright install --with-deps chromium
       - run: uv run pytest tests/ --playwright
 
+  # Run the suite on the oldest VTK that pyvista still tests.
+  vtk-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: pyvista/setup-headless-display-action@v5
+        with:
+          pyvista: true
+      - run: uv sync --extra test --python 3.11
+      - run: uv pip install vtk==9.3.1
+      - run: uv pip list | grep -iE '^(vtk|trame|wslink)'
+      - run: uv run --no-sync pytest tests/
+
   # Run the suite against the newest trame ecosystem releases that can coexist,
   # ignoring our upper pins, so a breakage is known before dependabot proposes the
   # bump. Synced versions become lower bounds so nothing is downgraded to fit.
@@ -158,7 +177,7 @@ jobs:
       - run: uv run pytest tests/ --playwright
 
   build:
-    needs: [lint, test, trame-floor]
+    needs: [lint, test, trame-floor, vtk-floor]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
