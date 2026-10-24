@@ -82,9 +82,9 @@ jobs:
           path: .coverage.playwright
           include-hidden-files: true
 
-  # Combine the test and playwright coverage, gate the total and the lines a PR changes, then upload.
+  # Combine the jobs' coverage, gate the total and the changed lines, then upload.
   coverage:
-    needs: [test, playwright]
+    needs: [test, playwright, vtk-floor]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -150,7 +150,13 @@ jobs:
       - run: uv sync --extra test --python 3.11
       - run: uv pip install vtk==9.3.1
       - run: uv pip list | grep -iE '^(vtk|trame|wslink)'
-      - run: uv run --no-sync pytest tests/
+      - run: uv run --no-sync pytest tests/ --cov
+      - run: mv .coverage .coverage.vtk-floor
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-vtk-floor
+          path: .coverage.vtk-floor
+          include-hidden-files: true
 
   # Run the suite against the newest trame ecosystem releases that can coexist,
   # ignoring our upper pins, so a breakage is known before dependabot proposes the
