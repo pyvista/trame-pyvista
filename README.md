@@ -24,12 +24,39 @@ For Jupyter:
 pip install "trame-pyvista[jupyter]"
 ```
 
+For the self-contained, serverless [anywidget][anywidget] container
+(renders entirely in the browser):
+
+```bash
+pip install "trame-pyvista[anywidget]"
+```
+
+[anywidget]: https://anywidget.dev
+
 ## What you get
 
-- **Jupyter backends**: `trame`, `server`, `client`, `html`. Registered
-  with PyVista via the `pyvista.jupyter_backends` entry-point group, so
+- **Jupyter backends**: `trame`, `server`, `client`, `html`, and
+  (optionally) `anywidget`. Registered with PyVista via the
+  `pyvista.jupyter_backends` entry-point group, so
   `pv.set_jupyter_backend('trame')` works once `trame-pyvista` is
   installed.
+- **Anywidget container**: a self-contained, serverless widget that
+  renders a scene entirely in the browser (no trame server process),
+  via the ``anywidget`` Jupyter backend or a plotter helper. It works in
+  any anywidget host -- JupyterLab, Jupyter Notebook, and
+  [marimo](https://marimo.stream) (which renders anywidget natively):
+
+  ```python
+  import pyvista as pv
+  from trame_pyvista.anywidget import from_plotter
+
+  pl = pv.Plotter()
+  pl.add_mesh(pv.Sphere())
+
+  from_plotter(pl)  # return/display the widget
+  # or: pl.trame.to_anywidget()
+  # or: pv.set_jupyter_backend('anywidget'); pl.show()
+  ```
 - **Plotter views**: `PyVistaLocalView`, `PyVistaRemoteView`,
   `PyVistaRemoteLocalView` for embedding in trame apps.
 - **`plotter.trame` namespace**: registered as a PyVista plotter

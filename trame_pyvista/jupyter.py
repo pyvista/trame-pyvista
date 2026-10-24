@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import threading
 from typing import TYPE_CHECKING
 from typing import Concatenate
 from typing import Literal
@@ -232,6 +233,9 @@ def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **k
 
     if server._running_stage == 0:
         server.controller.on_server_ready.add(on_ready)
+        # When running inside a non-main thread (e.g. the marimo kernel),
+        # signal handlers cannot be registered (``set_wakeup_fd`` is restricted
+        # to the main thread). ``thread=True`` tells trame/wslink to skip them.
         server.start(
             exec_mode='task',
             host=host,
@@ -241,6 +245,7 @@ def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **k
             disable_logging=True,
             timeout=0,
             backend=wslink_backend,
+            thread=threading.current_thread() is not threading.main_thread(),
         )
     # else, server is already running or launching
     return server

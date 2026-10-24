@@ -40,7 +40,10 @@ requires-python = '>=3.10'
 
 [project.optional-dependencies]
 jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
+anywidget = ['anywidget']
 sphinx = ['docutils', 'sphinx']
+marimo = ["marimo"]
+
 
 dev = [
   'mypy>=1.10',
@@ -58,10 +61,11 @@ playwright = [
   'sphinx-gallery',
 ]
 test = [
+  'anywidget',
   'ipython',
   'ipywidgets',
   'nest-asyncio2',
-  'numpy<2.5', # noisy shape deprecations until VTK 9.7
+  'numpy<2.5',             # noisy shape deprecations until VTK 9.7
   'pytest-cov>=7.0',
   'pytest>=8.0',
   'trame-pyvista[sphinx]',
@@ -90,6 +94,7 @@ html = 'trame_pyvista.jupyter:show_trame'
 server = 'trame_pyvista.jupyter:show_trame'
 trame = 'trame_pyvista.jupyter:show_trame'
 trame-pyvista = 'trame_pyvista.jupyter:show_trame'
+anywidget = 'trame_pyvista.anywidget:show_anywidget'
 
 # Plotter component plugin: importing this module registers the ``trame``
 # namespace on ``pyvista.BasePlotter`` (e.g. ``plotter.trame.export_vtksz``).
@@ -101,7 +106,7 @@ include = ['trame*', 'trame_pyvista*']
 where = ['.']
 
 [tool.setuptools.package-data]
-trame_pyvista = ['py.typed']
+trame_pyvista = ['py.typed', 'static/*.js']
 
 [tool.setuptools_scm]
 version_scheme = 'release-branch-semver'
@@ -150,9 +155,9 @@ extend-select = [
   'YTT',
 ]
 ignore = [
-  'D107', # Missing docstring in __init__
-  'D203', # one-blank-line-before-class
-  'D213', # multi-line-summary-second-line
+  'D107',   # Missing docstring in __init__
+  'D203',   # one-blank-line-before-class
+  'D213',   # multi-line-summary-second-line
   'SIM117', # Trame UI builders rely on nested `with` blocks for layout
 ]
 
@@ -195,11 +200,7 @@ sigterm = true
 source = ['trame_pyvista']
 
 [tool.coverage.report]
-exclude_lines = [
-  'if TYPE_CHECKING:',
-  'pragma: no cover',
-  'raise NotImplementedError',
-]
+exclude_lines = ['if TYPE_CHECKING:', 'pragma: no cover', 'raise NotImplementedError']
 
 [tool.mypy]
 disable_error_code = ['import-untyped']
