@@ -26,6 +26,8 @@ else:
 
 IS_WASM_SUPPORTED = pv.vtk_version_info >= (9, 7, 0)
 
+HAS_VTK_94 = pv.vtk_version_info >= (9, 4, 0)
+
 UPDATE_VTK_FOR_WASM = (
     '\n\n  The current version of vtk '
     f'{".".join(str(v) for v in pv.vtk_version_info)} is too old\n'
@@ -409,8 +411,18 @@ _LAZY_VIEWS = {
 
 
 def __getattr__(name):  # numpydoc ignore=RT01
-    """Import the trame-rca and trame-vtklocal views lazily, they need VTK >= 9.4."""
-    if name in _LAZY_VIEWS:
-        return getattr(importlib.import_module(_LAZY_VIEWS[name]), name)
-    msg = f'module {__name__!r} has no attribute {name!r}'
-    raise AttributeError(msg)
+    """Import the trame-rca and trame-vtklocal views on first access since they need VTK >= 9.4."""
+    if name not in _LAZY_VIEWS:
+        msg = f'module {__name__!r} has no attribute {name!r}'
+        raise AttributeError(msg)
+    if not HAS_VTK_94:
+        if name == 'PyVistaWasmView':
+            raise pv.VTKVersionError(UPDATE_VTK_FOR_WASM)
+        msg = f'{name} needs VTK >= 9.4, found {".".join(str(v) for v in pv.vtk_version_info)}.'
+        raise pv.VTKVersionError(msg)
+    return getattr(importlib.import_module(_LAZY_VIEWS[name]), name)
+
+
+def __dir__():  # numpydoc ignore=RT01
+    """List the module names including the lazily imported views."""
+    return sorted([*globals(), *_LAZY_VIEWS])

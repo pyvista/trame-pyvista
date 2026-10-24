@@ -7,10 +7,10 @@ import tempfile
 
 from trame.widgets import rca
 
-from trame_pyvista import widgets
+from trame_pyvista import widgets as pv_widgets
 
 
-class PyVistaRCAView(rca.RemoteControlledArea, widgets._BaseView):  # type: ignore[misc]
+class PyVistaRCAView(rca.RemoteControlledArea, pv_widgets._BaseView):  # type: ignore[misc]
     """PyVista wrapping of trame RemoteControlledArea for remote rendering.
 
     This will connect to and synchronize with a PyVista plotter to
@@ -35,7 +35,7 @@ class PyVistaRCAView(rca.RemoteControlledArea, widgets._BaseView):  # type: igno
 
     def __init__(self, plotter, *, display='image', target_fps=60, **kwargs):
         """Create a trame local view from a PyVista Plotter."""
-        widgets._BaseView.__init__(self, plotter)
+        pv_widgets._BaseView.__init__(self, plotter)
 
         rca.RemoteControlledArea.__init__(
             self,

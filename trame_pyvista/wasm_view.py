@@ -7,10 +7,10 @@ import mimetypes
 import pyvista as pv
 from trame.widgets import vtklocal
 
-from trame_pyvista import widgets
+from trame_pyvista import widgets as pv_widgets
 
 
-class PyVistaWasmView(vtklocal.LocalView, widgets._BaseView):  # type: ignore[misc]
+class PyVistaWasmView(vtklocal.LocalView, pv_widgets._BaseView):  # type: ignore[misc]
     """PyVista wrapping of trame LocalView for in-browser rendering.
 
     This will connect to and synchronize with a PyVista plotter to
@@ -29,10 +29,10 @@ class PyVistaWasmView(vtklocal.LocalView, widgets._BaseView):  # type: ignore[mi
 
     def __init__(self, plotter, **kwargs):
         """Create a trame local view from a PyVista Plotter."""
-        if not widgets.IS_WASM_SUPPORTED:
-            raise pv.VTKVersionError(widgets.UPDATE_VTK_FOR_WASM)
+        if not pv_widgets.IS_WASM_SUPPORTED:
+            raise pv.VTKVersionError(pv_widgets.UPDATE_VTK_FOR_WASM)
 
-        widgets._BaseView.__init__(self, plotter)
+        pv_widgets._BaseView.__init__(self, plotter)
 
         vtklocal.LocalView.__init__(
             self,

@@ -33,6 +33,7 @@ from trame_pyvista.ui.vuetify3 import divider as vue3_divider
 from trame_pyvista.ui.vuetify3 import select as vue3_select
 from trame_pyvista.ui.vuetify3 import slider as vue3_slider
 from trame_pyvista.ui.vuetify3 import text_field as vue3_text_field
+from trame_pyvista.widgets import HAS_VTK_94
 from trame_pyvista.widgets import PyVistaLocalView
 from trame_pyvista.widgets import PyVistaRemoteLocalView
 from trame_pyvista.widgets import PyVistaRemoteView
@@ -124,9 +125,9 @@ def test_import_without_rca_or_vtklocal():
     ('name', 'module'),
     [('PyVistaRCAView', 'rca_view'), ('PyVistaWasmView', 'wasm_view')],
 )
+@pytest.mark.skipif(not HAS_VTK_94, reason='trame-rca and trame-vtklocal need VTK >= 9.4')
 def test_lazy_view_attribute(name, module):
     """The VTK >= 9.4 views resolve lazily from both public modules."""
-    pytest.importorskip('vtkmodules.vtkSerializationManager')
     from trame.widgets import pyvista as trame_pyvista_widgets
 
     from trame_pyvista import widgets
@@ -134,13 +135,33 @@ def test_lazy_view_attribute(name, module):
     view_cls = getattr(importlib.import_module(f'trame_pyvista.{module}'), name)
     assert getattr(widgets, name) is view_cls
     assert getattr(trame_pyvista_widgets, name) is view_cls
+    assert name in dir(widgets)
+    assert name in trame_pyvista_widgets.__all__
 
 
-def test_lazy_view_missing_attribute():
+@pytest.mark.parametrize(
+    ('name', 'match'),
+    [('PyVistaRCAView', 'needs VTK >= 9.4'), ('PyVistaWasmView', 'is too old')],
+)
+@pytest.mark.skipif(HAS_VTK_94, reason='checks the error raised below VTK 9.4')
+def test_lazy_view_old_vtk(name, match):
+    """The VTK >= 9.4 views raise a version error on older VTK."""
+    from trame.widgets import pyvista as trame_pyvista_widgets
+
     from trame_pyvista import widgets
 
-    with pytest.raises(AttributeError, match='no attribute'):
-        _ = widgets.missing
+    with pytest.raises(pv.VTKVersionError, match=match):
+        getattr(widgets, name)
+    with pytest.raises(pv.VTKVersionError, match=match):
+        getattr(trame_pyvista_widgets, name)
+    assert name not in trame_pyvista_widgets.__all__
+    exec('from trame.widgets.pyvista import *', {})  # noqa: S102
+
+
+@pytest.mark.parametrize('module', ['trame_pyvista.widgets', 'trame.widgets.pyvista'])
+def test_lazy_view_missing_attribute(module):
+    with pytest.raises(AttributeError, match=f"module '{module}' has no attribute 'missing'"):
+        _ = importlib.import_module(module).missing
 
 
 def test_export_html_embeds_viewer_and_scene():
