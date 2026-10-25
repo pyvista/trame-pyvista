@@ -194,7 +194,7 @@ testpaths = ['tests']
 
 [tool.coverage.run]
 branch = true
-omit = ['trame_pyvista/_version.py']
+omit = ['*/trame_pyvista/_version.py']
 patch = ['subprocess']
 relative_files = true
 sigterm = true
