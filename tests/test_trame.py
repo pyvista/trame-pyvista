@@ -108,17 +108,39 @@ def test_launch_server_with_jupyter_kernel_argv():
 def test_launch_server_off_main_thread():
     # marimo run executes app cells in worker threads, where signal handlers cannot be installed.
     code = (
-        'import threading\n'
+        'import threading, urllib.request\n'
         'from trame.app import get_server\n'
         'from trame_pyvista.jupyter import elegantly_launch\n'
-        'ok = []\n'
         'def run():\n'
         "    elegantly_launch('off-main')\n"
-        "    ok.append(get_server(name='off-main').running)\n"
         'thread = threading.Thread(target=run)\n'
         'thread.start()\n'
         'thread.join(60)\n'
-        'assert ok == [True], ok\n'
+        "port = get_server(name='off-main').port\n"
+        "with urllib.request.urlopen(f'http://127.0.0.1:{port}/index.html', timeout=10) as r:\n"
+        '    assert r.status == 200\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_off_main_launches_share_one_loop_thread():
+    code = (
+        'import threading\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        "for name in ('first', 'second'):\n"
+        '    thread = threading.Thread(target=elegantly_launch, args=(name,))\n'
+        '    thread.start()\n'
+        '    thread.join(60)\n'
+        "loops = [t for t in threading.enumerate() if t.name == 'trame-pyvista-server']\n"
+        'assert len(loops) == 1, loops\n'
     )
     result = subprocess.run(
         [sys.executable, '-c', code],

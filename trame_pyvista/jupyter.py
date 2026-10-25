@@ -601,6 +601,22 @@ def show_trame(
     return Widget(viewer, src, iframe_attrs=iframe_attrs, **kwargs)
 
 
+_server_event_loop: asyncio.AbstractEventLoop | None = None
+_server_loop_lock = threading.Lock()
+
+
+def _server_loop() -> asyncio.AbstractEventLoop:
+    """Return the event loop that runs trame servers launched off the main thread."""
+    global _server_event_loop
+    with _server_loop_lock:
+        if _server_event_loop is None:
+            _server_event_loop = asyncio.new_event_loop()
+            threading.Thread(
+                target=_server_event_loop.run_forever, name='trame-pyvista-server', daemon=True
+            ).start()
+        return _server_event_loop
+
+
 def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
     """Elegantly launch the Trame server without await.
 
@@ -615,14 +631,26 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
     trame_server.core.Server
         The launched trame server.
 
+    Off the main thread, such as in a ``marimo run`` app, the server runs on a
+    dedicated daemon thread with its own event loop.
+
     Warnings
     --------
-    This uses `nest_asyncio <https://github.com/erdewit/nest_asyncio>`_ which
+    On the main thread, this uses
+    `nest_asyncio2 <https://github.com/Chaoses-Ib/nest-asyncio2>`_ which
     patches the standard lib `asyncio` package and may have unintended
     consequences for some uses cases. We advise strongly to make sure PyVista's
     Jupyter backend is not set to use Trame when not in a Jupyter environment.
 
     """
+
+    async def launch_it():
+        """Launch the server and wait until it is ready."""
+        await launch_server(*args, **kwargs).ready
+
+    if threading.current_thread() is not threading.main_thread():
+        return asyncio.run_coroutine_threadsafe(launch_it(), _server_loop()).result()
+
     try:
         import nest_asyncio2
     except ImportError:
@@ -633,10 +661,6 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
             'await launch_server().ready'
         )
         raise ImportError(msg)
-
-    async def launch_it():
-        """Launch the server and wait until it is ready."""
-        await launch_server(*args, **kwargs).ready
 
     # Basically monkey patches asyncio to support this
     nest_asyncio2.apply()
