@@ -83,10 +83,11 @@ def test_offlineviewer_interactive(tmp_path: Path) -> None:
 
 _RENDER_SCENE_JS = """async ([esm, state, page]) => {
   const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
-  const viewer = state.viewer.replace('IPY_MODEL_', '');
+  const viewer = state._viewer_page.replace('IPY_MODEL_', '');
+  window.sceneState = state;
   const model = {
-    get: (key) => state[key],
-    on: () => {},
+    get: (key) => window.sceneState[key],
+    on: (_, handler) => { window.sceneChanged = handler; },
     off: () => {},
     widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
   };
@@ -106,16 +107,34 @@ def test_embeddable_widget_renders_in_browser() -> None:
     pl = pv.Plotter(notebook=True)
     pl.add_mesh(pv.Sphere())
     widget = pl.show(jupyter_backend='html', return_viewer=True)
-    state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', 'viewer')}
+    state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
-        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget.viewer.html])
-        page.frame_locator('iframe.pyvista').locator('canvas').wait_for(timeout=10000)
+        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget._viewer_page.html])
+        canvas = page.frame_locator('iframe.pyvista').locator('canvas')
+        canvas.wait_for(timeout=10000)
         iframe = page.locator('iframe.pyvista')
         assert iframe.evaluate('e => e.style.borderStyle') == 'solid'
+        for _ in range(50):
+            pixels = _png_pixels(canvas.screenshot())
+            height, width = pixels.shape[:2]
+            if not np.array_equal(pixels[height // 2, width // 2], pixels[2, 2]):
+                break
+            page.wait_for_timeout(200)
+        else:
+            pytest.fail('The scene drew nothing at the canvas centre.')
+
+        before = iframe.evaluate('e => e.srcdoc')
+        page.evaluate(
+            'async (scene) => { window.sceneState.scene = scene; await window.sceneChanged(); }',
+            'QUJD',
+        )
+        after = iframe.evaluate('e => e.srcdoc')
+        assert 'base64Str: "QUJD"' in after
+        assert before.replace(state['scene'], 'QUJD') == after
         browser.close()
 
 

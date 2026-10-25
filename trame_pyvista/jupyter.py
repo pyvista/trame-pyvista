@@ -13,7 +13,6 @@ import threading
 from typing import TYPE_CHECKING
 from typing import Concatenate
 from typing import Literal
-import weakref
 
 from pyvista._warn_external import warn_external
 from trame.widgets import html as html_widgets
@@ -32,7 +31,7 @@ try:
     from anywidget import AnyWidget
     from ipywidgets import widget_serialization
     import traitlets
-except ImportError:
+except ImportError:  # pragma: no cover
     AnyWidget = object  # type: ignore[misc,assignment]
 
 
@@ -141,13 +140,14 @@ class Widget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
         return self._src
 
 
+# JavaScript module (ESM) that anywidget runs in the browser to draw each scene's iframe
 _SCENE_ESM = """
 async function render({ model, el }) {
   const iframe = document.createElement('iframe');
   iframe.className = 'pyvista';
   iframe.setAttribute('scrolling', 'no');
   const update = async () => {
-    const ref = model.get('viewer');
+    const ref = model.get('_viewer_page');
     const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
     const page = (await model.widget_manager.get_model(id)).get('html');
     iframe.style.cssText = model.get('iframe_style');
@@ -165,7 +165,13 @@ async function render({ model, el }) {
 export default { render };
 """
 
-_HTML_ONLY_KWARGS = ('style', 'description', 'placeholder')
+_HTML_ONLY_KWARGS = (
+    'style',
+    'description',
+    'description_allow_html',
+    'description_tooltip',
+    'placeholder',
+)
 
 
 def _require_anywidget():
@@ -182,8 +188,7 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     html = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
 
 
-_viewer_page: _ViewerPage | None = None
-_scene_widgets: weakref.WeakSet[EmbeddableWidget] = weakref.WeakSet()
+_shared_viewer_page: _ViewerPage | None = None
 _viewer_lock = threading.Lock()
 
 
@@ -192,17 +197,14 @@ def _is_closed(widget) -> bool:
     return widget.comm is None or getattr(widget.comm, '_closed', False)
 
 
-def _register_scene(widget: EmbeddableWidget) -> _ViewerPage:
-    """Return the viewer page for a new scene, replacing a closed one for all live scenes."""
-    global _viewer_page
+def _get_viewer_page() -> _ViewerPage:
+    """Return the shared viewer page, creating it when missing or closed."""
+    global _shared_viewer_page
     with _viewer_lock:
-        if _viewer_page is None or _is_closed(_viewer_page):
-            _viewer_page = _ViewerPage(html=Path(HTML_VIEWER_PATH).read_text(encoding='utf-8'))
-            for scene in list(_scene_widgets):
-                if not _is_closed(scene):
-                    scene.viewer = _viewer_page
-        _scene_widgets.add(widget)
-        return _viewer_page
+        if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
+            html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+            _shared_viewer_page = _ViewerPage(html=html)
+        return _shared_viewer_page
 
 
 class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
@@ -212,7 +214,7 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     if AnyWidget is not object:
         scene = traitlets.Unicode('').tag(sync=True)
         iframe_style = traitlets.Unicode('').tag(sync=True)
-        viewer = traitlets.Instance(_ViewerPage).tag(sync=True, **widget_serialization)
+        _viewer_page = traitlets.Instance(_ViewerPage).tag(sync=True, **widget_serialization)
 
     def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""
@@ -228,7 +230,7 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
         super().__init__(
             scene=base64.b64encode(data).decode('ascii'),
             iframe_style=f'width: {width}; height: {height}; {border}',
-            viewer=_register_scene(self),
+            _viewer_page=_get_viewer_page(),
             **kwargs,
         )
 

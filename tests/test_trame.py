@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+import comm
 from IPython.display import IFrame
 import numpy as np
 import pytest
@@ -550,26 +551,24 @@ def _show_html(**kwargs):
 
 def test_embeddable_widgets_share_viewer_page():
     first, second = _show_html(), _show_html()
-    assert first.viewer is second.viewer
-    assert first.viewer.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    page = first._viewer_page
+    assert page is second._viewer_page
+    assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
     assert base64.b64decode(first.scene)[:2] == b'PK'
-    assert first.get_state()['viewer'] == f'IPY_MODEL_{first.viewer.model_id}'
+    assert first.get_state()['_viewer_page'] == f'IPY_MODEL_{page.model_id}'
 
 
 @pytest.mark.parametrize('close', ['widget', 'comm'])
-def test_embeddable_widget_replaces_closed_viewer_page(monkeypatch: pytest.MonkeyPatch, close):
-    first = _show_html()
-    closed = _show_html()
-    closed.close()
-    old = first.viewer
+def test_embeddable_widget_replaces_closed_viewer_page(close):
+    old = _show_html()._viewer_page
     if close == 'widget':
         old.close()
     else:
-        monkeypatch.setattr(old.comm, '_closed', True, raising=False)
-    second = _show_html()
-    assert second.viewer is not old
-    assert first.viewer is second.viewer
-    assert closed.viewer is old
+        msg = {'content': {'comm_id': old.comm.comm_id, 'data': {}}}
+        comm.get_comm_manager().comm_close(None, None, msg)
+    first, second = _show_html(), _show_html()
+    assert first._viewer_page is not old
+    assert first._viewer_page is second._viewer_page
 
 
 def test_embeddable_widget_value():
@@ -588,8 +587,12 @@ def test_embeddable_widget_value():
 
 
 def test_embeddable_widget_ignores_html_kwargs():
-    with pytest.warns(UserWarning, match=r'Ignoring `style`, `description`'):
-        widget = _show_html(style={'background': 'red'}, description='sphere')
+    with pytest.warns(
+        UserWarning, match=r'Ignoring `style`, `description`, `description_tooltip`'
+    ):
+        widget = _show_html(
+            style={'background': 'red'}, description='sphere', description_tooltip='a'
+        )
     assert isinstance(widget, EmbeddableWidget)
 
 
