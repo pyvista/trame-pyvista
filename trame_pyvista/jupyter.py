@@ -241,6 +241,7 @@ def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **k
             disable_logging=True,
             timeout=0,
             backend=wslink_backend,
+            thread=True,
         )
     # else, server is already running or launching
     return server

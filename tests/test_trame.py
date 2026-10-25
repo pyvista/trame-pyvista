@@ -100,6 +100,51 @@ def test_launch_server_with_jupyter_kernel_argv():
     assert result.returncode == 0, result.stderr
 
 
+def test_launch_server_off_main_thread():
+    # Some notebook hosts run cells in worker threads, where signal handlers cannot be installed.
+    code = (
+        'import threading\n'
+        'from trame.app import get_server\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        'ok = []\n'
+        'def run():\n'
+        "    elegantly_launch('off-main')\n"
+        "    ok.append(get_server(name='off-main').running)\n"
+        'thread = threading.Thread(target=run)\n'
+        'thread.start()\n'
+        'thread.join(60)\n'
+        'assert ok == [True], ok\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_launch_server_keeps_signal_handlers():
+    code = (
+        'import signal\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        'before = signal.getsignal(signal.SIGINT)\n'
+        "elegantly_launch('keep-signals')\n"
+        'assert signal.getsignal(signal.SIGINT) is before\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_import_without_rca_or_vtklocal():
     """Importing the package loads neither trame-rca nor trame-vtklocal, both fail on VTK < 9.4."""
     code = (
