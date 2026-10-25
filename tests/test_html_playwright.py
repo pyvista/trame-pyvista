@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 import io
 import os
 from pathlib import Path
+import queue
 import subprocess
 import sys
 from threading import Thread
@@ -309,16 +310,28 @@ def served_plotter(request):
         text=True,
         env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
     )
+    output: queue.Queue[str] = queue.Queue()
+
+    def drain():
+        """Forward every output line so the pipe never fills."""
+        for line in proc.stdout:
+            output.put(line)
+
+    Thread(target=drain, daemon=True).start()
     lines: list[str] = []
     url = None
     deadline = time.monotonic() + 90
     try:
-        while time.monotonic() < deadline and proc.poll() is None:
-            line = proc.stdout.readline()
+        while url is None and time.monotonic() < deadline:
+            try:
+                line = output.get(timeout=1)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
             lines.append(line)
             if line.startswith('URL '):
                 url = line.split()[1]
-                break
         assert url is not None, ''.join(lines)
         yield url
     finally:
