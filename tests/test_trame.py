@@ -101,7 +101,7 @@ def test_launch_server_with_jupyter_kernel_argv():
 
 
 def test_launch_server_off_main_thread():
-    # Some notebook hosts run cells in worker threads, where signal handlers cannot be installed.
+    # marimo run executes app cells in worker threads, where signal handlers cannot be installed.
     code = (
         'import threading\n'
         'from trame.app import get_server\n'
@@ -130,9 +130,9 @@ def test_launch_server_keeps_signal_handlers():
     code = (
         'import signal\n'
         'from trame_pyvista.jupyter import elegantly_launch\n'
-        'before = signal.getsignal(signal.SIGINT)\n'
+        'before = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}\n'
         "elegantly_launch('keep-signals')\n"
-        'assert signal.getsignal(signal.SIGINT) is before\n'
+        'assert {sig: signal.getsignal(sig) for sig in before} == before\n'
     )
     result = subprocess.run(
         [sys.executable, '-c', code],
