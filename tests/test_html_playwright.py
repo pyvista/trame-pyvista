@@ -97,6 +97,46 @@ _RENDER_SCENE_JS = """async ([esm, state, page]) => {
 }"""
 
 
+_RENDER_HTML_JS = """async ([esm, value]) => {
+  const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
+  const state = {value};
+  const handlers = new Set();
+  const model = {
+    get: (key) => state[key],
+    on: (_, handler) => handlers.add(handler),
+    off: (_, handler) => handlers.delete(handler),
+  };
+  const el = document.createElement('div');
+  const html = [];
+  const cleanup = await mod.default.render({model, el});
+  html.push(el.innerHTML);
+  state.value = '<p>changed</p>';
+  handlers.forEach((handler) => handler());
+  html.push(el.innerHTML);
+  cleanup();
+  return [html, handlers.size];
+}"""
+
+
+@pytest.mark.needs_playwright
+def test_widget_renders_in_browser() -> None:
+    """Render a trame backend widget through its anywidget module with a stand-in model."""
+    from playwright.sync_api import sync_playwright
+
+    from trame_pyvista.jupyter import _HTML_ESM
+    from trame_pyvista.jupyter import Widget
+
+    widget = Widget(None, 'about:blank', width='10px', height='20px')
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content('<html><body></body></html>')
+        html, handlers = page.evaluate(_RENDER_HTML_JS, [_HTML_ESM, widget.value])
+        browser.close()
+    assert html == [widget.value, '<p>changed</p>']
+    assert handlers == 0
+
+
 @pytest.mark.needs_playwright
 def test_embeddable_widget_renders_in_browser() -> None:
     """Render an html backend widget through its anywidget module with a stand-in model."""

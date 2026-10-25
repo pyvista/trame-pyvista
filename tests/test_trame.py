@@ -18,6 +18,7 @@ from pyvista import examples
 from trame.app import get_server
 from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
 
+from trame_pyvista.jupyter import _HTML_ONLY_KWARGS
 from trame_pyvista.jupyter import EmbeddableWidget
 from trame_pyvista.jupyter import TrameServerDownError
 from trame_pyvista.jupyter import Widget
@@ -643,11 +644,21 @@ def test_embeddable_widget_ignores_html_kwargs():
 
 
 def test_widget_is_anywidget():
-    with pytest.warns(UserWarning, match=r'Ignoring `style`: no effect'):
-        widget = Widget(None, 'http://x', width='10px', height='20px', style={'color': 'red'})
+    widget = Widget(None, 'http://x', width='10px', height='20px')
     assert isinstance(widget, AnyWidget)
     assert widget.get_state()['value'] == widget.value
-    assert widget.value.startswith('<iframe src="http://x" class="pyvista"')
+    assert widget.value == (
+        '<iframe src="http://x" class="pyvista" '
+        'style="width: 10px; height: 20px; border: 1px solid rgb(221,221,221);" '
+        'scrolling="no"></iframe>'
+    )
+
+
+@pytest.mark.parametrize('key', _HTML_ONLY_KWARGS)
+def test_widget_ignores_html_kwargs(key):
+    with pytest.warns(UserWarning, match=rf'Ignoring `{key}`: no effect'):
+        widget = Widget(None, 'http://x', **{key: 'x'})
+    assert key not in widget.get_state()
 
 
 def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):
