@@ -81,11 +81,12 @@ jobs:
 
       # Only the dependency-group pins are rewritten; a direct reference in the
       # `jupyter` extra would make PyVista's own wheel unbuildable.
+      # The `jupyter` extra brings anywidget, which the notebook widgets need.
       - name: Point PyVista's docs at this trame-pyvista
         working-directory: pyvista
         run: |
-          sed -i -E "s#'trame-pyvista[<=>][^']*'#'trame-pyvista @ file://${GITHUB_WORKSPACE}/trame-pyvista'#" pyproject.toml
-          grep -n "trame-pyvista @" pyproject.toml
+          sed -i -E "s#'trame-pyvista[<=>][^']*'#'trame-pyvista[jupyter] @ file://${GITHUB_WORKSPACE}/trame-pyvista'#" pyproject.toml
+          grep -n "trame-pyvista\[jupyter\] @" pyproject.toml
 
       - run: pip install tox-uv
 
@@ -111,4 +112,3 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: pyvista
         run: tox r -e docs-test-images
-
