@@ -24,6 +24,10 @@ For Jupyter:
 pip install "trame-pyvista[jupyter]"
 ```
 
+The notebook widgets are [anywidgets](https://anywidget.dev). When the
+Jupyter server runs in a separate environment from the kernel (JupyterHub,
+`nb_conda_kernels`), install `anywidget` in the server environment too.
+
 ## What you get
 
 - **Jupyter backends**: `trame`, `server`, `client`, `html`. Registered
