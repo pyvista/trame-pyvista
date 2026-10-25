@@ -537,6 +537,7 @@ def show_trame(
         dh = f'{height}px'
     kwargs.setdefault('width', dw)
     kwargs.setdefault('height', dh)
+    url_kwargs = {key: kwargs.pop(key) for key in ('host', 'protocol') if key in kwargs}
 
     if mode == 'html':
         return EmbeddableWidget(plotter, **kwargs)
@@ -585,12 +586,12 @@ def show_trame(
             ui=plotter._id_name,
             server_proxy_enabled=server_proxy_enabled,
             server_proxy_prefix=server_proxy_prefix,
-            host=kwargs.get('host', 'localhost'),
-            protocol=kwargs.get('protocol', 'http'),
+            host=url_kwargs.get('host', 'localhost'),
+            protocol=url_kwargs.get('protocol', 'http'),
         )
 
     if callable(handler):
-        return handler(viewer, src, iframe_attrs=iframe_attrs, **kwargs)
+        return handler(viewer, src, iframe_attrs=iframe_attrs, **url_kwargs, **kwargs)
     return Widget(viewer, src, iframe_attrs=iframe_attrs, **kwargs)
 
 

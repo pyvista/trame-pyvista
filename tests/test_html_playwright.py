@@ -178,6 +178,52 @@ def test_embeddable_widget_renders_in_browser() -> None:
         browser.close()
 
 
+_SCENE_EVENTS_JS = """async ([esm, state, page]) => {
+  const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
+  const viewer = state._viewer_page.replace('IPY_MODEL_', '');
+  const handlers = {};
+  const model = {
+    get: (key) => state[key],
+    on: (event, handler) => { (handlers[event] ||= new Set()).add(handler); },
+    off: (event, handler) => { handlers[event]?.delete(handler); },
+    widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
+  };
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const cleanup = await mod.default.render({model, el});
+  state.iframe_style = 'width: 123px; height: 45px;';
+  for (const event of ['change', 'change:iframe_style']) {
+    for (const handler of handlers[event] || []) await handler();
+  }
+  const width = el.querySelector('iframe').style.width;
+  cleanup();
+  return [width, Object.values(handlers).reduce((n, set) => n + set.size, 0)];
+}"""
+
+
+@pytest.mark.needs_playwright
+def test_embeddable_widget_follows_style_and_cleans_up() -> None:
+    """Restyle an html backend widget, then check its cleanup removes every listener."""
+    from playwright.sync_api import sync_playwright
+
+    from trame_pyvista.jupyter import _SCENE_ESM
+
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    widget = pl.show(jupyter_backend='html', return_viewer=True)
+    state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content('<html><body></body></html>')
+        width, handlers = page.evaluate(
+            _SCENE_EVENTS_JS, [_SCENE_ESM, state, widget._viewer_page.html]
+        )
+        browser.close()
+    assert width == '123px'
+    assert handlers == 0
+
+
 BASELINE_IMAGE_NAME = 'html_screenshot_baseline.png'
 SUBPLOTS_BASELINE_IMAGE_NAME = 'html_subplots_baseline.png'
 WINDOW_SIZE = (400, 300)

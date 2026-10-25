@@ -32,7 +32,7 @@ def _collect() -> list:
 
 
 @pytest.mark.parametrize('script', _collect())
-def test_serve(script: str) -> None:
+def test_serve(script: str, tmp_path: Path) -> None:
     env = {**os.environ, 'PYVISTA_OFF_SCREEN': 'true'}
     result = subprocess.run(
         [
@@ -45,6 +45,7 @@ def test_serve(script: str) -> None:
             '0',
         ],
         check=False,
+        cwd=tmp_path,
         env=env,
         timeout=90,
     )

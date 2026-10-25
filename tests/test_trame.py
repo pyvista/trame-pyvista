@@ -149,6 +149,52 @@ def test_launch_server_keeps_signal_handlers():
     assert result.returncode == 0, result.stderr
 
 
+def test_elegantly_launch_inside_running_loop():
+    # A Jupyter kernel runs cells while its event loop is running.
+    code = (
+        'import asyncio\n'
+        'from trame.app import get_server\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        'async def cell():\n'
+        "    elegantly_launch('in-loop')\n"
+        "    assert get_server(name='in-loop').running\n"
+        'asyncio.run(cell())\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_launch_server_uses_theme_port():
+    code = (
+        'import socket\n'
+        'import pyvista as pv\n'
+        'from trame.app import get_server\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        'with socket.socket() as s:\n'
+        "    s.bind(('127.0.0.1', 0))\n"
+        '    port = s.getsockname()[1]\n'
+        'pv.global_theme.trame.jupyter_server_port = port\n'
+        "elegantly_launch('themed-port')\n"
+        "assert get_server(name='themed-port').port == port\n"
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_import_without_rca_or_vtklocal():
     """Importing the package loads neither trame-rca nor trame-vtklocal, both fail on VTK < 9.4."""
     code = (
@@ -452,11 +498,12 @@ def test_trame_views():
     assert PyVistaLocalView(pl, trame_server=server)
 
 
-def test_trame_jupyter_custom_size():
+@pytest.mark.parametrize('backend', ['trame', 'html'])
+def test_trame_jupyter_custom_size(backend):
     w, h = 200, 150
     pl = pv.Plotter(notebook=True, window_size=(w, h))
     _ = pl.add_mesh(pv.Cone())
-    widget = pl.show(jupyter_backend='trame', return_viewer=True)
+    widget = pl.show(jupyter_backend=backend, return_viewer=True)
     html = widget.value
     assert f'width: {w}px' in html
     assert f'height: {h}px' in html
@@ -464,7 +511,7 @@ def test_trame_jupyter_custom_size():
     pl = pv.Plotter(notebook=True)
     pl.window_size = (w, h)
     _ = pl.add_mesh(pv.Cone())
-    widget = pl.show(jupyter_backend='trame', return_viewer=True)
+    widget = pl.show(jupyter_backend=backend, return_viewer=True)
     html = widget.value
     assert f'width: {w}px' in html
     assert f'height: {h}px' in html
@@ -475,7 +522,7 @@ def test_trame_jupyter_custom_size():
     try:
         pl = pv.Plotter(notebook=True)
         _ = pl.add_mesh(pv.Cone())
-        widget = pl.show(jupyter_backend='trame', return_viewer=True)
+        widget = pl.show(jupyter_backend=backend, return_viewer=True)
         html = widget.value
         assert 'width: 100%' in html
         assert 'height: 600px' in html
@@ -683,6 +730,38 @@ def test_build_url_server_proxy():
     assert src == f'proxy/{server.port}/index.html?ui=abc&reconnect=auto'
     src = build_url(server, server_proxy_enabled=True, server_proxy_prefix='proxy/')
     assert src == f'proxy/{server.port}/index.html?reconnect=auto'
+
+
+@pytest.mark.parametrize('mode', ['trame', 'html'])
+def test_show_trame_host_and_protocol(mode):
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    widget = show_trame(pl, mode=mode, host='example.test', protocol='https')
+    if mode == 'trame':
+        assert widget.src.startswith('https://example.test:')
+        assert f'src="{widget.src}"' in widget.value
+
+
+def test_show_trame_handler_gets_host_and_protocol():
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    received = show_trame(
+        pl, mode='trame', host='example.test', protocol='https', handler=lambda *_, **kw: kw
+    )
+    assert received['host'] == 'example.test'
+    assert received['protocol'] == 'https'
+
+
+def test_widget_iframe_attrs():
+    widget = Widget(None, 'about:blank', iframe_attrs={'allow': 'fullscreen'})
+    assert 'allow="fullscreen"' in widget.value
+
+
+def test_html_widget_passes_anywidget_kwargs():
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    widget = show_trame(pl, mode='html', layout={'width': '50%'})
+    assert widget.layout.width == '50%'
 
 
 def test_elegantly_launch_requires_nest_asyncio(monkeypatch: pytest.MonkeyPatch):
