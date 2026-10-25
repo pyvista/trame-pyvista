@@ -3,23 +3,37 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import io
 import logging
 import os
+from pathlib import Path
+import threading
 from typing import TYPE_CHECKING
 from typing import Concatenate
 from typing import Literal
+import weakref
 
 from pyvista._warn_external import warn_external
 from trame.widgets import html as html_widgets
 from trame.widgets import vtk as vtk_widgets
 from trame.widgets import vuetify as vuetify2_widgets
 from trame.widgets import vuetify3 as vuetify3_widgets
+from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
+from trame_vtk.tools.vtksz2html import write_html
 
 try:
     from ipywidgets.widgets import HTML
 except ImportError:
     HTML = object
+
+try:
+    from anywidget import AnyWidget
+    from ipywidgets import widget_serialization
+    import traitlets
+except ImportError:
+    AnyWidget = object  # type: ignore[misc,assignment]
 
 
 import pyvista as pv
@@ -127,25 +141,104 @@ class Widget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
         return self._src
 
 
-class EmbeddableWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
-    """Custom HTML iframe widget for embedding the trame viewer."""
+_SCENE_ESM = """
+async function render({ model, el }) {
+  const iframe = document.createElement('iframe');
+  iframe.className = 'pyvista';
+  iframe.setAttribute('scrolling', 'no');
+  const update = async () => {
+    const ref = model.get('viewer');
+    const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
+    const page = (await model.widget_manager.get_model(id)).get('html');
+    iframe.style.cssText = model.get('iframe_style');
+    const script = '<script>function loadDataSet() {'
+      + "const container = document.querySelector('.content') || document.querySelector('body');"
+      + `OfflineLocalView.load(container, { base64Str: "${model.get('scene')}" });}</` + 'script>';
+    const end = page.lastIndexOf('</body>');
+    iframe.srcdoc = page.slice(0, end) + script + page.slice(end);
+  };
+  await update();
+  model.on('change', update);
+  el.appendChild(iframe);
+  return () => model.off('change', update);
+}
+export default { render };
+"""
+
+_HTML_ONLY_KWARGS = ('style', 'description', 'placeholder')
+
+
+def _require_anywidget():
+    """Raise when anywidget is not installed."""
+    if AnyWidget is object:
+        msg = 'Please install `anywidget`.'
+        raise ImportError(msg)
+
+
+class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
+    """Hidden anywidget holding the trame-vtk viewer page that scene widgets share."""
+
+    _esm = 'export default { render() {} };'
+    html = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
+
+
+_viewer_page: _ViewerPage | None = None
+_scene_widgets: weakref.WeakSet[EmbeddableWidget] = weakref.WeakSet()
+_viewer_lock = threading.Lock()
+
+
+def _is_closed(widget) -> bool:
+    """Return whether the widget's comm is gone."""
+    return widget.comm is None or getattr(widget.comm, '_closed', False)
+
+
+def _register_scene(widget: EmbeddableWidget) -> _ViewerPage:
+    """Return the viewer page for a new scene, replacing a closed one for all live scenes."""
+    global _viewer_page
+    with _viewer_lock:
+        if _viewer_page is None or _is_closed(_viewer_page):
+            _viewer_page = _ViewerPage(html=Path(HTML_VIEWER_PATH).read_text(encoding='utf-8'))
+            for scene in list(_scene_widgets):
+                if not _is_closed(scene):
+                    scene.viewer = _viewer_page
+        _scene_widgets.add(widget)
+        return _viewer_page
+
+
+class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
+    """Iframe widget rendering an exported scene with the shared trame-vtk viewer page."""
+
+    _esm = _SCENE_ESM
+    if AnyWidget is not object:
+        scene = traitlets.Unicode('').tag(sync=True)
+        iframe_style = traitlets.Unicode('').tag(sync=True)
+        viewer = traitlets.Instance(_ViewerPage).tag(sync=True, **widget_serialization)
 
     def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""
-        if HTML is object:
-            msg = 'Please install `ipywidgets`.'
-            raise ImportError(msg)
-        scene = plotter.trame.export_html(filename=None)
-        src = scene.getvalue().replace('&', '&amp;').replace('"', '&quot;')
+        _require_anywidget()
+        ignored = [key for key in _HTML_ONLY_KWARGS if kwargs.pop(key, None) is not None]
+        if ignored:
+            names = ', '.join(f'`{key}`' for key in ignored)
+            warn_external(f'Ignoring {names}: no effect on the html backend widget.')
+        data = plotter.trame.export_vtksz(filename=None)
         # eventually we could maybe expose this, but for now make sure we're at least
         # consistent with matplotlib's color (light gray)
         border = 'border: 1px solid rgb(221,221,221);'
-        value = (
-            f'<iframe srcdoc="{src}" class="pyvista" style="width: {width}; '
-            f'height: {height}; {border}"></iframe>'
+        super().__init__(
+            scene=base64.b64encode(data).decode('ascii'),
+            iframe_style=f'width: {width}; height: {height}; {border}',
+            viewer=_register_scene(self),
+            **kwargs,
         )
-        super().__init__(value, **kwargs)
-        self._src = src
+
+    @property
+    def value(self):  # numpydoc ignore=RT01
+        """Get the standalone iframe HTML embedding the full viewer page and scene."""
+        page = io.StringIO()
+        write_html(base64.b64decode(self.scene), page)
+        src = page.getvalue().replace('&', '&amp;').replace('"', '&quot;')
+        return f'<iframe srcdoc="{src}" class="pyvista" style="{self.iframe_style}"></iframe>'
 
 
 def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **kwargs):
@@ -408,11 +501,11 @@ def show_trame(
         Mostly ignored, though ``protocol`` and ``host`` can be use to
         override the iframe src url and ``height`` and ``width`` can be
         used to override the iframe style. Remaining kwargs are passed to
-        ``ipywidgets.widgets.HTML``.
+        ``ipywidgets.widgets.HTML``, or ``anywidget.AnyWidget`` for the html backend.
 
     Returns
     -------
-    output : ipywidgets.widgets.HTML or handler result
+    output : ipywidgets.widgets.HTML, anywidget.AnyWidget or handler result
         Returns a HTML IFrame widget or the result of the passed handler.
 
     """

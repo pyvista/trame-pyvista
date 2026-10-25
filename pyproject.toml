@@ -39,7 +39,12 @@ readme = 'README.md'
 requires-python = '>=3.10'
 
 [project.optional-dependencies]
-jupyter = ['ipywidgets', 'jupyter-server-proxy', 'nest-asyncio2']
+jupyter = [
+  'anywidget>=0.9',
+  'ipywidgets',
+  'jupyter-server-proxy',
+  'nest-asyncio2',
+]
 sphinx = ['docutils', 'sphinx']
 
 dev = [
@@ -58,6 +63,7 @@ playwright = [
   'sphinx-gallery',
 ]
 test = [
+  'anywidget>=0.9',
   'ipython',
   'ipywidgets',
   'nest-asyncio2',

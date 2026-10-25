@@ -81,6 +81,44 @@ def test_offlineviewer_interactive(tmp_path: Path) -> None:
         os.chdir(old_cwd)
 
 
+_RENDER_SCENE_JS = """async ([esm, state, page]) => {
+  const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
+  const viewer = state.viewer.replace('IPY_MODEL_', '');
+  const model = {
+    get: (key) => state[key],
+    on: () => {},
+    off: () => {},
+    widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
+  };
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  await mod.default.render({model, el});
+}"""
+
+
+@pytest.mark.needs_playwright
+def test_embeddable_widget_renders_in_browser() -> None:
+    """Render an html backend widget through its anywidget module with a stand-in model."""
+    from playwright.sync_api import sync_playwright
+
+    from trame_pyvista.jupyter import _SCENE_ESM
+
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    widget = pl.show(jupyter_backend='html', return_viewer=True)
+    state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', 'viewer')}
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content('<html><body></body></html>')
+        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget.viewer.html])
+        page.frame_locator('iframe.pyvista').locator('canvas').wait_for(timeout=10000)
+        iframe = page.locator('iframe.pyvista')
+        assert iframe.evaluate('e => e.style.borderStyle') == 'solid'
+        browser.close()
+
+
 BASELINE_IMAGE_NAME = 'html_screenshot_baseline.png'
 SUBPLOTS_BASELINE_IMAGE_NAME = 'html_subplots_baseline.png'
 WINDOW_SIZE = (400, 300)
