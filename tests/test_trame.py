@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
+import gc
 import importlib
 import os
 from pathlib import Path
@@ -729,6 +731,76 @@ def test_widget_ignores_html_kwargs(key):
     with pytest.warns(UserWarning, match=rf'Ignoring `{key}`: no effect'):
         widget = Widget(None, 'http://x', **{key: 'x'})
     assert key not in widget.get_state()
+
+
+class _FakeMarimoContext:
+    """Stand-in marimo runtime context recording the cell ids of created widgets."""
+
+    def __init__(self):
+        self.cell_ids = []
+
+    @contextlib.contextmanager
+    def with_cell_id(self, cell_id):
+        """Record ``cell_id`` while the block runs."""
+        self.cell_ids.append(cell_id)
+        yield
+
+
+def test_marimo_sessions_get_their_own_viewer_page(monkeypatch: pytest.MonkeyPatch):
+    from trame_pyvista import jupyter
+
+    first, second = _FakeMarimoContext(), _FakeMarimoContext()
+    monkeypatch.setattr(jupyter, '_marimo_context', lambda: first)
+    page = _show_html()._viewer_page
+    assert _show_html()._viewer_page is page
+    assert first.cell_ids == [None]
+    assert page._esm == ''
+    page.close()
+    replaced = _show_html()._viewer_page
+    assert replaced is not page
+    monkeypatch.setattr(jupyter, '_marimo_context', lambda ctx=second: ctx)
+    assert _show_html()._viewer_page not in (page, replaced)
+    monkeypatch.undo()
+    assert _show_html()._viewer_page not in (page, replaced)
+    key = id(second)
+    del second
+    gc.collect()
+    assert key not in jupyter._session_viewer_pages
+
+
+def test_marimo_context_outside_marimo(monkeypatch: pytest.MonkeyPatch):
+    from trame_pyvista import jupyter
+
+    pytest.importorskip('marimo')
+    assert jupyter._marimo_context() is None
+    monkeypatch.setitem(sys.modules, 'marimo._runtime.context', None)
+    assert jupyter._marimo_context() is None
+    monkeypatch.delitem(sys.modules, 'marimo')
+    assert jupyter._marimo_context() is None
+
+
+def test_marimo_app_gets_a_session_viewer_page():
+    marimo = pytest.importorskip('marimo')
+    app = marimo.App()
+
+    @app.cell
+    def _():
+        import pyvista as pv
+
+        from trame_pyvista import jupyter
+
+        ctx = jupyter._marimo_context()
+        page = jupyter._get_viewer_page()
+        pl = pv.Plotter()
+        pl.add_mesh(pv.Sphere())
+        widget = pl.trame.show(mode='html')
+        return ctx, jupyter, page, widget
+
+    _, defs = app.run()
+    assert defs['ctx'] is not None
+    assert defs['page']._esm == ''
+    assert defs['page'] is defs['jupyter']._session_viewer_pages[id(defs['ctx'])]
+    assert defs['widget']._viewer_page is defs['page']
 
 
 def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):

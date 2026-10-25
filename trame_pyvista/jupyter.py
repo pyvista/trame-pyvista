@@ -14,6 +14,7 @@ import threading
 from typing import TYPE_CHECKING
 from typing import Concatenate
 from typing import Literal
+import weakref
 
 from pyvista._warn_external import warn_external
 from trame.widgets import html as html_widgets
@@ -207,7 +208,23 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
 
 
 _shared_viewer_page: _ViewerPage | None = None
+_session_viewer_pages: dict[int, _ViewerPage] = {}
 _viewer_lock = threading.Lock()
+
+
+def _marimo_context():
+    """Return the marimo runtime context of the calling thread, if any."""
+    if 'marimo' not in sys.modules:
+        return None
+    # marimo has no public API for the calling session's context, which keys one viewer page
+    # per session and creates it outside any cell. If this import breaks we fall back to the
+    # Jupyter page: marimo then disposes it when the cell that made it reruns, and every
+    # session shares it, so other cells' and sessions' html plots go blank.
+    try:
+        from marimo._runtime.context import safe_get_context
+    except ImportError:
+        return None
+    return safe_get_context()
 
 
 def _is_closed(widget) -> bool:
@@ -215,14 +232,30 @@ def _is_closed(widget) -> bool:
     return widget.comm is None or getattr(widget.comm, '_closed', False)
 
 
+def _new_viewer_page(ctx) -> _ViewerPage:
+    """Create a viewer page, owned by no cell in a marimo session."""
+    html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    if ctx is None:
+        return _ViewerPage(html=html)
+    with ctx.with_cell_id(None):
+        return _ViewerPage(html=html, _esm='')
+
+
 def _get_viewer_page() -> _ViewerPage:
-    """Return the shared viewer page, creating it when missing or closed."""
+    """Return the viewer page of this kernel or marimo session, replacing a closed one."""
     global _shared_viewer_page
+    ctx = _marimo_context()
     with _viewer_lock:
-        if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
-            html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
-            _shared_viewer_page = _ViewerPage(html=html)
-        return _shared_viewer_page
+        if ctx is None:
+            if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
+                _shared_viewer_page = _new_viewer_page(None)
+            return _shared_viewer_page
+        key = id(ctx)
+        page = _session_viewer_pages.get(key)
+        if page is None or _is_closed(page):
+            page = _session_viewer_pages[key] = _new_viewer_page(ctx)
+            weakref.finalize(ctx, _session_viewer_pages.pop, key, None)
+        return page
 
 
 class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
