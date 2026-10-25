@@ -9,6 +9,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import sys
 import threading
 from typing import TYPE_CHECKING
 from typing import Concatenate
@@ -375,6 +376,11 @@ def build_url(
         # server_proxy_prefix assumes trailing slash
         prefix = server_proxy_prefix or ''  # pragma: no cover
         src = f'{prefix}{_server.port}/index.html{params}'
+    elif 'google.colab' in sys.modules:
+        from google.colab.output import eval_js
+
+        base = eval_js(f'google.colab.kernel.proxyPort({_server.port})')
+        src = f'{base.rstrip("/")}/index.html{params}'
     else:
         src = f'{protocol}://{host}:{_server.port}/index.html{params}'
     logger.debug(src)

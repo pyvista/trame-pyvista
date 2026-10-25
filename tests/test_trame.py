@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import types
 
 from anywidget import AnyWidget
 import comm
@@ -762,6 +763,23 @@ def test_html_widget_passes_anywidget_kwargs():
     pl.add_mesh(pv.Sphere())
     widget = show_trame(pl, mode='html', layout={'width': '50%'})
     assert widget.layout.width == '50%'
+
+
+def test_build_url_colab(monkeypatch: pytest.MonkeyPatch):
+    server = get_server(name=pv.global_theme.trame.jupyter_server_name)
+    calls = []
+
+    def eval_js(script):
+        calls.append(script)
+        return 'https://8080-colab.example.dev/'
+
+    output = types.ModuleType('google.colab.output')
+    output.eval_js = eval_js
+    monkeypatch.setitem(sys.modules, 'google.colab', types.ModuleType('google.colab'))
+    monkeypatch.setitem(sys.modules, 'google.colab.output', output)
+    src = build_url(server, ui='abc', server_proxy_enabled=False)
+    assert src == 'https://8080-colab.example.dev/index.html?ui=abc&reconnect=auto'
+    assert calls == [f'google.colab.kernel.proxyPort({server.port})']
 
 
 def test_elegantly_launch_requires_nest_asyncio(monkeypatch: pytest.MonkeyPatch):
