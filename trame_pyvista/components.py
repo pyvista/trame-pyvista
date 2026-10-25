@@ -179,7 +179,7 @@ class TrameComponent:
 
         Returns
         -------
-        ipywidgets.widgets.HTML | anywidget.AnyWidget | IPython.display.IFrame
+        anywidget.AnyWidget | IPython.display.IFrame
             The widget produced by the trame backend.
 
         """

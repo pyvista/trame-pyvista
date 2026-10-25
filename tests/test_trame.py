@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+from anywidget import AnyWidget
 import comm
 from IPython.display import IFrame
 import numpy as np
@@ -641,18 +642,21 @@ def test_embeddable_widget_ignores_html_kwargs():
     assert isinstance(widget, EmbeddableWidget)
 
 
-def test_ipywidgets_raises(monkeypatch: pytest.MonkeyPatch):
-    from trame_pyvista import jupyter
-
-    monkeypatch.setattr(jupyter, 'HTML', object)
-    with pytest.raises(ImportError, match=r'Please install `ipywidgets`.'):
-        jupyter.Widget(viewer=None, src=None)
+def test_widget_is_anywidget():
+    with pytest.warns(UserWarning, match=r'Ignoring `style`: no effect'):
+        widget = Widget(None, 'http://x', width='10px', height='20px', style={'color': 'red'})
+    assert isinstance(widget, AnyWidget)
+    assert widget.get_state()['value'] == widget.value
+    assert widget.value.startswith('<iframe src="http://x" class="pyvista"')
 
 
 def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):
     from trame_pyvista import jupyter
 
     monkeypatch.setattr(jupyter, 'AnyWidget', object)
+    with pytest.raises(ImportError, match=r'Please install `anywidget`.'):
+        jupyter.Widget(viewer=None, src=None)
+
     with pytest.raises(ImportError, match=r'Please install `anywidget`.'):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
 
