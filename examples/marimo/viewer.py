@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import marimo
 
 __generated_with = '0.25.2'
@@ -10,16 +8,14 @@ app = marimo.App(width='full')
 def _():
     import pyvista as pv
 
-    from trame_pyvista.anywidget import from_plotter
-
-    return from_plotter, pv
+    return (pv,)
 
 
 @app.cell
-def _(from_plotter, pv):
+def _(pv):
     pl = pv.Plotter()
     pl.add_mesh(pv.Sphere())
-    from_plotter(pl, height=320)
+    pl.trame.show(mode='html', height='320px')
 
 
 if __name__ == '__main__':
