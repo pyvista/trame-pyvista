@@ -64,3 +64,24 @@ def test_marimo(script: str) -> None:
         timeout=90,
     )
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize(
+    'notebook',
+    [
+        *sorted((EXAMPLES_DIR / 'marimo').glob('*.py')),
+        Path(__file__).parent / '_marimo_plots.py',
+    ],
+    ids=lambda path: path.name,
+)
+def test_marimo_check(notebook: Path) -> None:
+    """Lint each marimo notebook with ``marimo check --strict``."""
+    pytest.importorskip('marimo')
+    result = subprocess.run(
+        [sys.executable, '-m', 'marimo', 'check', '--strict', str(notebook)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
