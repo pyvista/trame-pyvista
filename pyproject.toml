@@ -50,7 +50,7 @@ sphinx = ['docutils', 'sphinx']
 dev = [
   'mypy>=1.10',
   'pre-commit',
-  'ruff==0.17.1',
+  'ruff==0.17.2',
   'trame-pyvista[jupyter,sphinx,test,playwright]',
 ]
 playwright = [
