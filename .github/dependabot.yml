@@ -1,10 +1,19 @@
 version: 2
+multi-ecosystem-groups:
+  maintenance:
+    schedule:
+      interval: quarterly
+    labels: [maintenance, dependencies]
 updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
       # Daily so a new trame release is allowed (or its breakage found) within a day.
       interval: daily
+    # Trame only: ruff follows the pre-commit hooks, which pre-commit.ci bumps quarterly.
+    allow:
+      - dependency-name: "trame*"
+      - dependency-name: "wslink"
     # `pyvista-docs` runs the PyVista docs build on the bump PR.
     labels: [maintenance, dependencies, pyvista-docs]
     open-pull-requests-limit: 20
@@ -12,10 +21,6 @@ updates:
       trame:
         patterns: ["trame*", "wslink"]
   - package-ecosystem: github-actions
-    directory: "/.github/workflows"
-    schedule:
-      interval: weekly
-    labels: [maintenance, dependencies]
-    groups:
-      artifacts:
-        patterns: ["actions/upload-artifact", "actions/download-artifact"]
+    directory: "/"
+    patterns: ["*"]
+    multi-ecosystem-group: maintenance
