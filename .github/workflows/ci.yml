@@ -29,8 +29,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --extra dev
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+      - run: uvx pre-commit run --all-files --show-diff-on-failure ruff-check
+      - run: uvx pre-commit run --all-files --show-diff-on-failure ruff-format
       - run: uv run mypy trame_pyvista
 
   test:
@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -73,7 +73,7 @@ jobs:
         with:
           pyvista: true
       - run: uv sync --extra test --extra playwright --extra sphinx
-      - run: uv run playwright install --with-deps chromium
+      - run: uv run playwright install chromium
       - run: uv run pytest tests/ --playwright -m needs_playwright --cov
       - run: mv .coverage .coverage.playwright
       - uses: actions/upload-artifact@v7
@@ -130,7 +130,7 @@ jobs:
       - run: uv sync --extra test --extra playwright --extra sphinx
       - run: uv pip install $(uv run python .github/scripts/trame_floors.py)
       - run: uv pip list | grep -iE '^(vtk|trame|wslink)'
-      - run: uv run playwright install --with-deps chromium
+      - run: uv run playwright install chromium
       - run: uv run pytest tests/ --playwright
 
   # Run the suite on the oldest VTK that pyvista still tests.
@@ -179,7 +179,7 @@ jobs:
       - run: uv pip freeze | grep -iE '^(trame|wslink)' | sed 's/==/>=/' > floors.txt
       - run: uv pip install --upgrade --constraint floors.txt trame trame-client trame-common trame-server trame-vtk trame-vuetify wslink
       - run: uv pip list | grep -iE '^(vtk|trame|wslink)'
-      - run: uv run playwright install --with-deps chromium
+      - run: uv run playwright install chromium
       - run: uv run pytest tests/ --playwright
 
   build:

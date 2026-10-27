@@ -11,10 +11,10 @@ classifiers = [
   'Operating System :: Microsoft :: Windows',
   'Operating System :: POSIX :: Linux',
   'Programming Language :: Python :: 3',
-  'Programming Language :: Python :: 3.10',
   'Programming Language :: Python :: 3.11',
   'Programming Language :: Python :: 3.12',
   'Programming Language :: Python :: 3.13',
+  'Programming Language :: Python :: 3.14',
   'Topic :: Scientific/Engineering :: Visualization',
 ]
 dependencies = [ # trame bounds: trame-floor and test CI jobs pass
@@ -36,7 +36,7 @@ keywords = ['jupyter', 'pyvista', 'trame', 'visualization', 'vtk']
 license = 'MIT'
 name = 'trame-pyvista'
 readme = 'README.md'
-requires-python = '>=3.10'
+requires-python = '>=3.11'
 
 [project.optional-dependencies]
 jupyter = [
@@ -51,7 +51,6 @@ sphinx = ['docutils', 'sphinx']
 dev = [
   'mypy>=1.10',
   'pre-commit',
-  'ruff==0.17.1',
   'trame-pyvista[jupyter,sphinx,test,playwright]',
 ]
 playwright = [
@@ -215,7 +214,7 @@ exclude_lines = [
 disable_error_code = ['import-untyped']
 files = ['trame_pyvista']
 ignore_missing_imports = true
-python_version = '3.10'
+python_version = '3.11'
 
 [[tool.mypy.overrides]]
 follow_imports = 'skip'
