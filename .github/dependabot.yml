@@ -10,7 +10,6 @@ updates:
     schedule:
       # Daily so a new trame release is allowed (or its breakage found) within a day.
       interval: daily
-    # Trame only: ruff follows the pre-commit hooks, which pre-commit.ci bumps quarterly.
     allow:
       - dependency-name: "trame*"
       - dependency-name: "wslink"
