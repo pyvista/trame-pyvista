@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import importlib
 import io
 import logging
 import os
@@ -227,6 +228,15 @@ def _marimo_context():
     return safe_get_context()
 
 
+def _marimo_owns_widgets_by_cell() -> bool:
+    """Return whether this marimo assigns every widget to the running cell (marimo#11358)."""
+    try:
+        registry = importlib.import_module('marimo._runtime.cell_lifecycle_registry')
+    except ImportError:
+        return False
+    return hasattr(registry, 'NoOwningCellError')
+
+
 def _is_closed(widget) -> bool:
     """Return whether the widget's comm is gone."""
     return widget.comm is None or getattr(widget.comm, '_closed', False)
@@ -242,7 +252,7 @@ def _new_viewer_page(ctx) -> _ViewerPage:
 
 
 def _get_viewer_page() -> _ViewerPage:
-    """Return the viewer page of this kernel or marimo session, replacing a closed one."""
+    """Return the viewer page of this kernel or marimo session, or a new one per widget."""
     global _shared_viewer_page
     ctx = _marimo_context()
     with _viewer_lock:
@@ -250,6 +260,8 @@ def _get_viewer_page() -> _ViewerPage:
             if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
                 _shared_viewer_page = _new_viewer_page(None)
             return _shared_viewer_page
+        if _marimo_owns_widgets_by_cell():
+            return _ViewerPage(html=Path(HTML_VIEWER_PATH).read_text(encoding='utf-8'), _esm='')
         key = id(ctx)
         page = _session_viewer_pages.get(key)
         if page is None or _is_closed(page):
@@ -259,7 +271,7 @@ def _get_viewer_page() -> _ViewerPage:
 
 
 class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
-    """Iframe widget rendering an exported scene with the shared trame-vtk viewer page."""
+    """Iframe widget rendering an exported scene with the trame-vtk viewer page."""
 
     _esm = _SCENE_ESM
     if AnyWidget is not object:
