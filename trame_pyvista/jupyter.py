@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
-import importlib
+import functools
 import io
+import json
 import logging
 import os
 from pathlib import Path
@@ -15,7 +16,6 @@ import threading
 from typing import TYPE_CHECKING
 from typing import Concatenate
 from typing import Literal
-import weakref
 
 from pyvista._warn_external import warn_external
 from trame.widgets import html as html_widgets
@@ -114,8 +114,8 @@ async function render({ model, el }) {
   iframe.setAttribute('scrolling', 'no');
   const update = async () => {
     const ref = model.get('_viewer_page');
-    const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
-    const page = (await model.widget_manager.get_model(id)).get('html');
+    const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref?.model_id;
+    const page = id ? (await model.widget_manager.get_model(id)).get('html') : VIEWER_PAGE;
     iframe.style.cssText = model.get('iframe_style');
     const script = '<script>function loadDataSet() {'
       + "const container = document.querySelector('.content') || document.querySelector('body');"
@@ -130,6 +130,37 @@ async function render({ model, el }) {
 }
 export default { render };
 """
+_SCENE_ESM = 'const VIEWER_PAGE = null;' + _SCENE_ESM
+
+
+@functools.cache
+def _scene_esm_with_page() -> str:
+    """Return the scene ESM with the viewer page embedded as a constant."""
+    page = json.dumps(Path(HTML_VIEWER_PATH).read_text(encoding='utf-8'))
+    return _SCENE_ESM.replace('const VIEWER_PAGE = null;', f'const VIEWER_PAGE = {page};', 1)
+
+
+def _in_marimo() -> bool:
+    """Return whether this code runs in a marimo notebook."""
+    marimo = sys.modules.get('marimo')
+    return marimo is not None and marimo.running_in_notebook()
+
+
+_MARIMO_FLOOR = '0.23.14'
+
+
+@functools.cache
+def _warn_old_marimo() -> None:
+    """Warn once when this marimo sends the viewer page with every html plot."""
+    from packaging.version import Version
+
+    version = sys.modules['marimo'].__version__
+    if Version(version) < Version(_MARIMO_FLOOR):
+        warn_external(
+            f'marimo {version} sends the viewer page with every html plot. Upgrade to marimo '
+            f'{_MARIMO_FLOOR} or newer to load it once per notebook.'
+        )
+
 
 _HTML_ONLY_KWARGS = (
     'style',
@@ -209,32 +240,7 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
 
 
 _shared_viewer_page: _ViewerPage | None = None
-_session_viewer_pages: dict[int, _ViewerPage] = {}
 _viewer_lock = threading.Lock()
-
-
-def _marimo_context():
-    """Return the marimo runtime context of the calling thread, if any."""
-    if 'marimo' not in sys.modules:
-        return None
-    # marimo has no public API for the calling session's context, which keys one viewer page
-    # per session and creates it outside any cell. If this import breaks we fall back to the
-    # Jupyter page: marimo then disposes it when the cell that made it reruns, and every
-    # session shares it, so other cells' and sessions' html plots go blank.
-    try:
-        from marimo._runtime.context import safe_get_context
-    except ImportError:
-        return None
-    return safe_get_context()
-
-
-def _marimo_owns_widgets_by_cell() -> bool:
-    """Return whether this marimo assigns every widget to the running cell (marimo#11358)."""
-    try:
-        registry = importlib.import_module('marimo._runtime.cell_lifecycle_registry')
-    except ImportError:
-        return False
-    return hasattr(registry, 'NoOwningCellError')
 
 
 def _is_closed(widget) -> bool:
@@ -242,32 +248,14 @@ def _is_closed(widget) -> bool:
     return widget.comm is None or getattr(widget.comm, '_closed', False)
 
 
-def _new_viewer_page(ctx) -> _ViewerPage:
-    """Create a viewer page, owned by no cell in a marimo session."""
-    html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
-    if ctx is None:
-        return _ViewerPage(html=html)
-    with ctx.with_cell_id(None):
-        return _ViewerPage(html=html, _esm='')
-
-
 def _get_viewer_page() -> _ViewerPage:
-    """Return the viewer page of this kernel or marimo session, or a new one per widget."""
+    """Return the shared viewer page, creating it when missing or closed."""
     global _shared_viewer_page
-    ctx = _marimo_context()
     with _viewer_lock:
-        if ctx is None:
-            if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
-                _shared_viewer_page = _new_viewer_page(None)
-            return _shared_viewer_page
-        if _marimo_owns_widgets_by_cell():
-            return _ViewerPage(html=Path(HTML_VIEWER_PATH).read_text(encoding='utf-8'), _esm='')
-        key = id(ctx)
-        page = _session_viewer_pages.get(key)
-        if page is None or _is_closed(page):
-            page = _session_viewer_pages[key] = _new_viewer_page(ctx)
-            weakref.finalize(ctx, _session_viewer_pages.pop, key, None)
-        return page
+        if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
+            html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+            _shared_viewer_page = _ViewerPage(html=html)
+        return _shared_viewer_page
 
 
 class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
@@ -277,7 +265,9 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     if AnyWidget is not object:
         scene = traitlets.Unicode('').tag(sync=True)
         iframe_style = traitlets.Unicode('').tag(sync=True)
-        _viewer_page = traitlets.Instance(_ViewerPage).tag(sync=True, **widget_serialization)
+        _viewer_page = traitlets.Instance(_ViewerPage, allow_none=True).tag(
+            sync=True, **widget_serialization
+        )
 
     def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""
@@ -287,10 +277,14 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
         # eventually we could maybe expose this, but for now make sure we're at least
         # consistent with matplotlib's color (light gray)
         border = 'border: 1px solid rgb(221,221,221);'
+        if _in_marimo():
+            _warn_old_marimo()
+            kwargs.update(_esm=_scene_esm_with_page(), _viewer_page=None)
+        else:
+            kwargs['_viewer_page'] = _get_viewer_page()
         super().__init__(
             scene=base64.b64encode(data).decode('ascii'),
             iframe_style=f'width: {width}; height: {height}; {border}',
-            _viewer_page=_get_viewer_page(),
             **kwargs,
         )
 

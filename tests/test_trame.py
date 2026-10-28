@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import contextlib
-import gc
 import importlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -733,80 +732,52 @@ def test_widget_ignores_html_kwargs(key):
     assert key not in widget.get_state()
 
 
-class _FakeMarimoContext:
-    """Stand-in marimo runtime context recording the cell ids of created widgets."""
-
-    def __init__(self):
-        self.cell_ids = []
-
-    @contextlib.contextmanager
-    def with_cell_id(self, cell_id):
-        """Record ``cell_id`` while the block runs."""
-        self.cell_ids.append(cell_id)
-        yield
-
-
-def test_marimo_sessions_get_their_own_viewer_page(monkeypatch: pytest.MonkeyPatch):
-    from trame_pyvista import jupyter
-
-    first, second = _FakeMarimoContext(), _FakeMarimoContext()
-    monkeypatch.setattr(jupyter, '_marimo_context', lambda: first)
-    monkeypatch.setattr(jupyter, '_marimo_owns_widgets_by_cell', lambda: False)
-    page = _show_html()._viewer_page
-    assert _show_html()._viewer_page is page
-    assert first.cell_ids == [None]
-    assert page._esm == ''
-    page.close()
-    replaced = _show_html()._viewer_page
-    assert replaced is not page
-    monkeypatch.setattr(jupyter, '_marimo_context', lambda ctx=second: ctx)
-    assert _show_html()._viewer_page not in (page, replaced)
-    monkeypatch.undo()
-    assert _show_html()._viewer_page not in (page, replaced)
-    key = id(second)
-    del second
-    gc.collect()
-    assert key not in jupyter._session_viewer_pages
-
-
-def test_marimo_cell_owned_widgets_get_their_own_viewer_page(monkeypatch: pytest.MonkeyPatch):
-    from trame_pyvista import jupyter
-
-    ctx = _FakeMarimoContext()
-    monkeypatch.setattr(jupyter, '_marimo_context', lambda: ctx)
-    monkeypatch.setattr(jupyter, '_marimo_owns_widgets_by_cell', lambda: True)
-    first, second = _show_html(), _show_html()
-    assert first._viewer_page is not second._viewer_page
-    assert first._viewer_page._esm == ''
-    assert first._viewer_page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
-    assert ctx.cell_ids == []
-    assert id(ctx) not in jupyter._session_viewer_pages
-
-
-def test_marimo_owns_widgets_by_cell(monkeypatch: pytest.MonkeyPatch):
-    from trame_pyvista import jupyter
-
-    marimo = pytest.importorskip('marimo')
-    registry = importlib.import_module('marimo._runtime.cell_lifecycle_registry')
-    expected = hasattr(registry, 'NoOwningCellError')
-    assert jupyter._marimo_owns_widgets_by_cell() is expected
-    monkeypatch.setitem(sys.modules, 'marimo._runtime.cell_lifecycle_registry', None)
-    assert jupyter._marimo_owns_widgets_by_cell() is False
-    del marimo
-
-
-def test_marimo_context_outside_marimo(monkeypatch: pytest.MonkeyPatch):
+def test_marimo_esm_carries_the_viewer_page(monkeypatch: pytest.MonkeyPatch):
     from trame_pyvista import jupyter
 
     pytest.importorskip('marimo')
-    assert jupyter._marimo_context() is None
-    monkeypatch.setitem(sys.modules, 'marimo._runtime.context', None)
-    assert jupyter._marimo_context() is None
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    first, second = _show_html(), _show_html()
+    assert first._viewer_page is None
+    assert first._esm == second._esm == jupyter._scene_esm_with_page()
+    page = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    assert f'const VIEWER_PAGE = {json.dumps(page)};' in first._esm
+    assert 'const VIEWER_PAGE = null;' in jupyter._SCENE_ESM
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: False)
+    widget = _show_html()
+    assert widget._esm == jupyter._SCENE_ESM
+    assert widget._viewer_page is jupyter._get_viewer_page()
+
+
+@pytest.mark.parametrize('version', ['0.14.12', '0.23.13'])
+def test_old_marimo_warns_once(monkeypatch: pytest.MonkeyPatch, version: str):
+    from trame_pyvista import jupyter
+
+    marimo = pytest.importorskip('marimo')
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    monkeypatch.setattr(marimo, '__version__', version)
+    jupyter._warn_old_marimo.cache_clear()
+    with pytest.warns(UserWarning, match=rf'marimo {version} sends the viewer page'):
+        _show_html()
+    _show_html()
+    jupyter._warn_old_marimo.cache_clear()
+    monkeypatch.setattr(marimo, '__version__', jupyter._MARIMO_FLOOR)
+    _show_html()
+    jupyter._warn_old_marimo.cache_clear()
+
+
+def test_in_marimo(monkeypatch: pytest.MonkeyPatch):
+    from trame_pyvista import jupyter
+
+    marimo = pytest.importorskip('marimo')
+    assert jupyter._in_marimo() is False
+    monkeypatch.setattr(marimo, 'running_in_notebook', lambda: True)
+    assert jupyter._in_marimo() is True
     monkeypatch.delitem(sys.modules, 'marimo')
-    assert jupyter._marimo_context() is None
+    assert jupyter._in_marimo() is False
 
 
-def test_marimo_app_gets_a_session_viewer_page():
+def test_marimo_script_run_shares_the_viewer_page():
     marimo = pytest.importorskip('marimo')
     app = marimo.App()
 
@@ -816,23 +787,16 @@ def test_marimo_app_gets_a_session_viewer_page():
 
         from trame_pyvista import jupyter
 
-        ctx = jupyter._marimo_context()
-        page = jupyter._get_viewer_page()
+        in_marimo = jupyter._in_marimo()
         pl = pv.Plotter()
         pl.add_mesh(pv.Sphere())
         widget = pl.trame.show(mode='html')
-        return ctx, jupyter, page, widget
+        return in_marimo, jupyter, widget
 
     _, defs = app.run()
-    jupyter = defs['jupyter']
-    assert defs['ctx'] is not None
-    assert defs['page']._esm == ''
-    if jupyter._marimo_owns_widgets_by_cell():
-        assert id(defs['ctx']) not in jupyter._session_viewer_pages
-        assert defs['widget']._viewer_page is not defs['page']
-    else:
-        assert defs['page'] is jupyter._session_viewer_pages[id(defs['ctx'])]
-        assert defs['widget']._viewer_page is defs['page']
+    assert defs['in_marimo'] is False
+    assert defs['widget']._esm == defs['jupyter']._SCENE_ESM
+    assert defs['widget']._viewer_page is defs['jupyter']._get_viewer_page()
 
 
 def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):
