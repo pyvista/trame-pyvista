@@ -195,6 +195,31 @@ def test_elegantly_launch_inside_running_loop():
     assert result.returncode == 0, result.stderr
 
 
+def test_elegantly_launch_in_marimo_uses_server_thread():
+    # marimo runs cells on its kernel loop, which a nested loop corrupts.
+    code = (
+        'import asyncio, sys\n'
+        'from trame.app import get_server\n'
+        'from trame_pyvista import jupyter\n'
+        'jupyter._in_marimo = lambda: True\n'
+        'async def cell():\n'
+        "    jupyter.elegantly_launch('in-marimo')\n"
+        "    assert get_server(name='in-marimo').running\n"
+        "    assert 'nest_asyncio2' not in sys.modules\n"
+        '    assert jupyter._server_event_loop is not None\n'
+        'asyncio.run(cell())\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_launch_server_uses_theme_port():
     code = (
         'import socket\n'

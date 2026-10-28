@@ -670,8 +670,8 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
     trame_server.core.Server
         The launched trame server.
 
-    Off the main thread, such as in a ``marimo run`` app, the server runs on a
-    dedicated daemon thread with its own event loop.
+    In marimo, and off the main thread, the server runs on a dedicated daemon
+    thread with its own event loop.
 
     Warnings
     --------
@@ -687,7 +687,7 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
         """Launch the server and wait until it is ready."""
         await launch_server(*args, **kwargs).ready
 
-    if threading.current_thread() is not threading.main_thread():
+    if _in_marimo() or threading.current_thread() is not threading.main_thread():
         return asyncio.run_coroutine_threadsafe(launch_it(), _server_loop()).result()
 
     try:
