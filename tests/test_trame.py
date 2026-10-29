@@ -658,6 +658,13 @@ def test_embeddable_widgets_share_viewer_page():
     assert first.get_state()['_viewer_page'] == f'IPY_MODEL_{page.model_id}'
 
 
+def test_viewer_page_sends_plain_html_on_request():
+    page = _show_html()._viewer_page
+    assert page.html == ''
+    page.plain = True
+    assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+
+
 @pytest.mark.parametrize('close', ['widget', 'comm'])
 def test_embeddable_widget_replaces_closed_viewer_page(close):
     old = _show_html()._viewer_page

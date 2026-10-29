@@ -108,25 +108,51 @@ export default { render };
 
 # JavaScript module (ESM) that anywidget runs in the browser to draw each scene's iframe
 _SCENE_ESM = """
+const pages = new Map();
 async function inflate(gzipBase64) {
   const bytes = Uint8Array.from(atob(gzipBase64), (c) => c.charCodeAt(0));
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Response(stream).text();
+}
+async function plainPage(viewer) {
+  if (!viewer.get('html')) {
+    const filled = new Promise((resolve) => viewer.once('change:html', resolve));
+    viewer.set('plain', true);
+    viewer.save_changes();
+    await filled;
+  }
+  return viewer.get('html');
+}
+function viewerPage(viewer, id) {
+  if (!pages.has(id)) {
+    const gz = viewer.get('html_gz');
+    const canInflate = gz && typeof DecompressionStream !== 'undefined';
+    const page = canInflate ? inflate(gz) : plainPage(viewer);
+    pages.set(id, page.catch((err) => { pages.delete(id); throw err; }));
+  }
+  return pages.get(id);
 }
 async function render({ model, el }) {
   const iframe = document.createElement('iframe');
   iframe.className = 'pyvista';
   iframe.setAttribute('scrolling', 'no');
   const update = async () => {
-    const ref = model.get('_viewer_page');
-    const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
-    const page = await inflate((await model.widget_manager.get_model(id)).get('html_gz'));
     iframe.style.cssText = model.get('iframe_style');
-    const script = '<script>function loadDataSet() {'
-      + "const container = document.querySelector('.content') || document.querySelector('body');"
-      + `OfflineLocalView.load(container, { base64Str: "${model.get('scene')}" });}</` + 'script>';
-    const end = page.lastIndexOf('</body>');
-    iframe.srcdoc = page.slice(0, end) + script + page.slice(end);
+    try {
+      const ref = model.get('_viewer_page');
+      const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
+      const page = await viewerPage(await model.widget_manager.get_model(id), id);
+      const scene = model.get('scene');
+      const script = '<script>function loadDataSet() {'
+        + "const container = document.querySelector('.content') || document.querySelector('body');"
+        + `OfflineLocalView.load(container, { base64Str: "${scene}" });}</` + 'script>';
+      const end = page.lastIndexOf('</body>');
+      iframe.srcdoc = page.slice(0, end) + script + page.slice(end);
+    } catch (err) {
+      const text = document.createElement('pre');
+      text.textContent = `trame-pyvista could not load the viewer page: ${err}`;
+      iframe.srcdoc = text.outerHTML;
+    }
   };
   await update();
   model.on('change', update);
@@ -210,7 +236,16 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Hidden anywidget holding the trame-vtk viewer page that scene widgets share."""
 
     _esm = 'export default { render() {} };'
-    html_gz = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
+    if AnyWidget is not object:
+        html_gz = traitlets.Unicode('').tag(sync=True)
+        html = traitlets.Unicode('').tag(sync=True)
+        plain = traitlets.Bool(False).tag(sync=True)
+
+        @traitlets.observe('plain')
+        def _send_plain(self, change) -> None:
+            """Send the plain viewer page."""
+            if change['new']:
+                self.html = _viewer_page_text()
 
 
 _shared_viewer_page: _ViewerPage | None = None
@@ -218,9 +253,15 @@ _viewer_lock = threading.Lock()
 
 
 @functools.cache
+def _viewer_page_text() -> str:
+    """Return the trame-vtk viewer page."""
+    return Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+
+
+@functools.cache
 def _viewer_page_gz() -> str:
     """Return the trame-vtk viewer page gzipped and base64 encoded."""
-    page = gzip.compress(Path(HTML_VIEWER_PATH).read_bytes(), compresslevel=9, mtime=0)
+    page = gzip.compress(_viewer_page_text().encode('utf-8'), compresslevel=9, mtime=0)
     return base64.b64encode(page).decode('ascii')
 
 

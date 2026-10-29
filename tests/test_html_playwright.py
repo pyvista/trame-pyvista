@@ -179,6 +179,68 @@ def test_embeddable_widget_renders_in_browser() -> None:
         browser.close()
 
 
+_SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate]) => {
+  const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
+  if (dropInflate) delete window.DecompressionStream;
+  const viewerState = {html_gz: gz, html: '', plain: false};
+  const requests = [];
+  const viewer = {
+    get: (key) => viewerState[key],
+    set: (key, value) => { viewerState[key] = value; },
+    save_changes: () => {
+      requests.push({...viewerState});
+      viewerState.html = html;
+      setTimeout(() => viewer.filled?.(), 0);
+    },
+    once: (_, handler) => { viewer.filled = handler; },
+  };
+  const model = {
+    get: (key) => state[key],
+    on: () => {},
+    off: () => {},
+    widget_manager: {get_model: async () => viewer},
+  };
+  const els = [document.createElement('div'), document.createElement('div')];
+  for (const el of els) {
+    document.body.appendChild(el);
+    await mod.default.render({model, el});
+  }
+  return [els.map((el) => el.querySelector('iframe').srcdoc), requests];
+}"""
+
+
+@pytest.mark.needs_playwright
+@pytest.mark.parametrize('case', ['no_inflate', 'old_notebook', 'bad_gzip'])
+def test_embeddable_widget_falls_back(case: str) -> None:
+    """Fall back to the plain viewer page, or show the error."""
+    from playwright.sync_api import sync_playwright
+
+    from trame_pyvista.jupyter import _SCENE_ESM
+
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    widget = pl.show(jupyter_backend='html', return_viewer=True)
+    state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
+    html = '<html><body><p>plain</p></body></html>'
+    gz = {'no_inflate': widget._viewer_page.html_gz, 'old_notebook': '', 'bad_gzip': 'QUJD'}[case]
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content('<html><body></body></html>')
+        docs, requests = page.evaluate(
+            _SCENE_FALLBACK_JS, [_SCENE_ESM, state, gz, html, case == 'no_inflate']
+        )
+        browser.close()
+    assert docs[0] == docs[1]
+    if case == 'bad_gzip':
+        assert 'could not load the viewer page' in docs[0]
+        assert requests == []
+    else:
+        assert docs[0].startswith('<html><body><p>plain</p>')
+        assert f'base64Str: "{state["scene"]}"' in docs[0]
+        assert [r['plain'] for r in requests] == [True]
+
+
 _SCENE_EVENTS_JS = """async ([esm, state, page]) => {
   const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
   const viewer = state._viewer_page.replace('IPY_MODEL_', '');
