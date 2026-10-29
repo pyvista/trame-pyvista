@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import gzip
 import importlib
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from pyvista import examples
 from trame.app import get_server
 from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
 
+from trame_pyvista import jupyter
 from trame_pyvista.jupyter import _HTML_ONLY_KWARGS
 from trame_pyvista.jupyter import EmbeddableWidget
 from trame_pyvista.jupyter import TrameServerDownError
@@ -648,7 +650,10 @@ def test_embeddable_widgets_share_viewer_page():
     first, second = _show_html(), _show_html()
     page = first._viewer_page
     assert page is second._viewer_page
-    assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    assert page.html_gz == jupyter._viewer_page_gz()
+    html_gz = base64.b64decode(page.html_gz)
+    assert gzip.decompress(html_gz) == Path(HTML_VIEWER_PATH).read_bytes()
+    assert len(html_gz) < len(gzip.decompress(html_gz)) / 2
     assert base64.b64decode(first.scene)[:2] == b'PK'
     assert first.get_state()['_viewer_page'] == f'IPY_MODEL_{page.model_id}'
 

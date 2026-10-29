@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import functools
+import gzip
 import io
 import logging
 import os
@@ -106,6 +108,11 @@ export default { render };
 
 # JavaScript module (ESM) that anywidget runs in the browser to draw each scene's iframe
 _SCENE_ESM = """
+async function inflate(gzipBase64) {
+  const bytes = Uint8Array.from(atob(gzipBase64), (c) => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).text();
+}
 async function render({ model, el }) {
   const iframe = document.createElement('iframe');
   iframe.className = 'pyvista';
@@ -113,7 +120,7 @@ async function render({ model, el }) {
   const update = async () => {
     const ref = model.get('_viewer_page');
     const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
-    const page = (await model.widget_manager.get_model(id)).get('html');
+    const page = await inflate((await model.widget_manager.get_model(id)).get('html_gz'));
     iframe.style.cssText = model.get('iframe_style');
     const script = '<script>function loadDataSet() {'
       + "const container = document.querySelector('.content') || document.querySelector('body');"
@@ -203,11 +210,18 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Hidden anywidget holding the trame-vtk viewer page that scene widgets share."""
 
     _esm = 'export default { render() {} };'
-    html = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
+    html_gz = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
 
 
 _shared_viewer_page: _ViewerPage | None = None
 _viewer_lock = threading.Lock()
+
+
+@functools.cache
+def _viewer_page_gz() -> str:
+    """Return the trame-vtk viewer page gzipped and base64 encoded."""
+    page = gzip.compress(Path(HTML_VIEWER_PATH).read_bytes(), compresslevel=9, mtime=0)
+    return base64.b64encode(page).decode('ascii')
 
 
 def _is_closed(widget) -> bool:
@@ -220,8 +234,7 @@ def _get_viewer_page() -> _ViewerPage:
     global _shared_viewer_page
     with _viewer_lock:
         if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
-            html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
-            _shared_viewer_page = _ViewerPage(html=html)
+            _shared_viewer_page = _ViewerPage(html_gz=_viewer_page_gz())
         return _shared_viewer_page
 
 

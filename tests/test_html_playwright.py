@@ -154,7 +154,7 @@ def test_embeddable_widget_renders_in_browser() -> None:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
-        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget._viewer_page.html])
+        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget._viewer_page.html_gz])
         canvas = page.frame_locator('iframe.pyvista').locator('canvas')
         canvas.wait_for(timeout=10000)
         iframe = page.locator('iframe.pyvista')
@@ -218,7 +218,7 @@ def test_embeddable_widget_follows_style_and_cleans_up() -> None:
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
         width, handlers = page.evaluate(
-            _SCENE_EVENTS_JS, [_SCENE_ESM, state, widget._viewer_page.html]
+            _SCENE_EVENTS_JS, [_SCENE_ESM, state, widget._viewer_page.html_gz]
         )
         browser.close()
     assert width == '123px'
