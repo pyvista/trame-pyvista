@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import functools
+import gzip
 import io
 import logging
 import os
@@ -105,21 +107,63 @@ export default { render };
 """
 
 # JavaScript module (ESM) that anywidget runs in the browser to draw each scene's iframe
-_SCENE_ESM = """
+_SCENE_ESM = """const VIEWER_PAGE_GZ = null;
+const pages = (globalThis.__tramePyvistaPages ||= new WeakMap());
+let embeddedPage = null;
+async function inflate(gzipBase64) {
+  const bytes = Uint8Array.from(atob(gzipBase64), (c) => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).text();
+}
+async function plainPage(viewer) {
+  if (!viewer.get('html')) {
+    if (viewer.comm_live === false) {
+      throw new Error('this browser cannot unpack the viewer page without a running kernel');
+    }
+    const filled = new Promise((resolve) => viewer.once('change:html', resolve));
+    viewer.set('plain', true);
+    viewer.save_changes();
+    await filled;
+  }
+  return viewer.get('html');
+}
+function viewerPage(viewer) {
+  if (!pages.has(viewer)) {
+    const gz = viewer.get('html_gz');
+    const canInflate = gz && typeof DecompressionStream !== 'undefined';
+    const page = canInflate ? inflate(gz) : plainPage(viewer);
+    pages.set(viewer, page.catch((err) => { pages.delete(viewer); throw err; }));
+  }
+  return pages.get(viewer);
+}
+async function scenePage(model) {
+  const ref = model.get('_viewer_page');
+  if (!ref) {
+    embeddedPage ||= inflate(VIEWER_PAGE_GZ).catch((err) => { embeddedPage = null; throw err; });
+    return embeddedPage;
+  }
+  const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
+  return viewerPage(await model.widget_manager.get_model(id));
+}
 async function render({ model, el }) {
   const iframe = document.createElement('iframe');
   iframe.className = 'pyvista';
   iframe.setAttribute('scrolling', 'no');
   const update = async () => {
-    const ref = model.get('_viewer_page');
-    const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
-    const page = (await model.widget_manager.get_model(id)).get('html');
     iframe.style.cssText = model.get('iframe_style');
-    const script = '<script>function loadDataSet() {'
-      + "const container = document.querySelector('.content') || document.querySelector('body');"
-      + `OfflineLocalView.load(container, { base64Str: "${model.get('scene')}" });}</` + 'script>';
-    const end = page.lastIndexOf('</body>');
-    iframe.srcdoc = page.slice(0, end) + script + page.slice(end);
+    try {
+      const page = await scenePage(model);
+      const scene = model.get('scene');
+      const script = '<script>function loadDataSet() {'
+        + "const container = document.querySelector('.content') || document.querySelector('body');"
+        + `OfflineLocalView.load(container, { base64Str: "${scene}" });}</` + 'script>';
+      const end = page.lastIndexOf('</body>');
+      iframe.srcdoc = page.slice(0, end) + script + page.slice(end);
+    } catch (err) {
+      const text = document.createElement('pre');
+      text.textContent = `trame-pyvista could not load the viewer page: ${err.message ?? err}`;
+      iframe.srcdoc = text.outerHTML;
+    }
   };
   await update();
   model.on('change', update);
@@ -203,11 +247,42 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Hidden anywidget holding the trame-vtk viewer page that scene widgets share."""
 
     _esm = 'export default { render() {} };'
+    html_gz = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
     html = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
+    plain = traitlets.Bool(False).tag(sync=True) if AnyWidget is not object else None
+
+    def __init__(self, **kwargs):
+        """Initialize."""
+        super().__init__(**kwargs)
+        self.observe(self._send_plain, 'plain')
+
+    def _send_plain(self, change) -> None:
+        """Send the plain viewer page."""
+        self.html = _viewer_page_text()
 
 
 _shared_viewer_page: _ViewerPage | None = None
 _viewer_lock = threading.Lock()
+
+
+@functools.cache
+def _viewer_page_text() -> str:
+    """Return the trame-vtk viewer page."""
+    return Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+
+
+@functools.cache
+def _viewer_page_gz() -> str:
+    """Return the trame-vtk viewer page gzipped and base64 encoded."""
+    page = gzip.compress(_viewer_page_text().encode('utf-8'), compresslevel=9, mtime=0)
+    return base64.b64encode(page).decode('ascii')
+
+
+@functools.cache
+def _scene_esm_with_page() -> str:
+    """Return the scene ESM carrying the gzipped viewer page, for scenes without a shared page."""
+    page = f'const VIEWER_PAGE_GZ = "{_viewer_page_gz()}";'
+    return _SCENE_ESM.replace('const VIEWER_PAGE_GZ = null;', page, 1)
 
 
 def _is_closed(widget) -> bool:
@@ -220,8 +295,7 @@ def _get_viewer_page() -> _ViewerPage:
     global _shared_viewer_page
     with _viewer_lock:
         if _shared_viewer_page is None or _is_closed(_shared_viewer_page):
-            html = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
-            _shared_viewer_page = _ViewerPage(html=html)
+            _shared_viewer_page = _ViewerPage(html_gz=_viewer_page_gz())
         return _shared_viewer_page
 
 
@@ -232,7 +306,9 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     if AnyWidget is not object:
         scene = traitlets.Unicode('').tag(sync=True)
         iframe_style = traitlets.Unicode('').tag(sync=True)
-        _viewer_page = traitlets.Instance(_ViewerPage).tag(sync=True, **widget_serialization)
+        _viewer_page = traitlets.Instance(_ViewerPage, allow_none=True).tag(
+            sync=True, **widget_serialization
+        )
 
     def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""

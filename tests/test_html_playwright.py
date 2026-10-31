@@ -84,13 +84,15 @@ def test_offlineviewer_interactive(tmp_path: Path) -> None:
 
 _RENDER_SCENE_JS = """async ([esm, state, page]) => {
   const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
-  const viewer = state._viewer_page.replace('IPY_MODEL_', '');
+  const viewer = state._viewer_page?.replace('IPY_MODEL_', '');
   window.sceneState = state;
   const model = {
     get: (key) => window.sceneState[key],
     on: (_, handler) => { window.sceneChanged = handler; },
     off: () => {},
-    widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
+    widget_manager: {
+      get_model: async (id) => ({get: (key) => (id === viewer && key === 'html_gz' ? page : '')}),
+    },
   };
   const el = document.createElement('div');
   document.body.appendChild(el);
@@ -139,22 +141,27 @@ def test_widget_renders_in_browser() -> None:
 
 
 @pytest.mark.needs_playwright
-def test_embeddable_widget_renders_in_browser() -> None:
+@pytest.mark.parametrize('viewer_page', ['shared', 'embedded'])
+def test_embeddable_widget_renders_in_browser(viewer_page: str) -> None:
     """Render an html backend widget through its anywidget module with a stand-in model."""
     from playwright.sync_api import sync_playwright
 
     from trame_pyvista.jupyter import _SCENE_ESM
+    from trame_pyvista.jupyter import _scene_esm_with_page
 
     pl = pv.Plotter(notebook=True)
     pl.add_mesh(pv.Sphere())
     widget = pl.show(jupyter_backend='html', return_viewer=True)
     state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
+    esm = _SCENE_ESM
+    if viewer_page == 'embedded':
+        esm, state['_viewer_page'] = _scene_esm_with_page(), None
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
-        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget._viewer_page.html])
+        page.evaluate(_RENDER_SCENE_JS, [esm, state, widget._viewer_page.html_gz])
         canvas = page.frame_locator('iframe.pyvista').locator('canvas')
         canvas.wait_for(timeout=10000)
         iframe = page.locator('iframe.pyvista')
@@ -179,6 +186,104 @@ def test_embeddable_widget_renders_in_browser() -> None:
         browser.close()
 
 
+_SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel, cached]) => {
+  const load = () => import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
+  if (dropInflate) delete window.DecompressionStream;
+  let inflations = 0;
+  if (window.DecompressionStream) {
+    const Inflate = window.DecompressionStream;
+    window.DecompressionStream = class extends Inflate {
+      constructor(format) { super(format); inflations += 1; }
+    };
+  }
+  const viewerState = {html_gz: gz, html: cached ? html : '', plain: cached};
+  const requests = [];
+  const viewer = {
+    comm_live: !noKernel,
+    get: (key) => viewerState[key],
+    set: (key, value) => { viewerState[key] = value; },
+    save_changes: () => {
+      if (noKernel) return;
+      requests.push({...viewerState});
+      viewerState.html = html;
+      setTimeout(() => viewer.filled?.(), 0);
+    },
+    once: (_, handler) => { viewer.filled = handler; },
+  };
+  const model = {
+    get: (key) => state[key],
+    on: () => {},
+    off: () => {},
+    widget_manager: {get_model: async () => viewer},
+  };
+  const els = [document.createElement('div'), document.createElement('div')];
+  for (const el of els) {
+    document.body.appendChild(el);
+    await (await load()).default.render({model, el});
+  }
+  return [els.map((el) => el.querySelector('iframe').srcdoc), requests, inflations];
+}"""
+
+
+@pytest.mark.needs_playwright
+@pytest.mark.parametrize(
+    'case', ['inflate', 'no_inflate', 'no_gz', 'bad_gzip', 'no_kernel', 'plain_cached']
+)
+def test_embeddable_widget_falls_back(case: str) -> None:
+    """Fall back to the plain viewer page, or show the error."""
+    from playwright.sync_api import sync_playwright
+
+    from trame_pyvista.jupyter import _SCENE_ESM
+
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    widget = pl.show(jupyter_backend='html', return_viewer=True)
+    state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
+    html = '<html><body><p>plain</p></body></html>'
+    real_gz = widget._viewer_page.html_gz
+    gz = {'bad_gzip': 'QUJD', 'no_gz': ''}.get(case, real_gz)
+    drop_inflate = case in ('no_inflate', 'no_kernel', 'plain_cached')
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_content('<html><body></body></html>')
+        docs, requests, inflations = page.evaluate(
+            _SCENE_FALLBACK_JS,
+            [
+                _SCENE_ESM,
+                state,
+                gz,
+                html,
+                drop_inflate,
+                case == 'no_kernel',
+                case == 'plain_cached',
+            ],
+        )
+        browser.close()
+    assert docs[0] == docs[1]
+    assert inflations == {'inflate': 1, 'bad_gzip': 2}.get(case, 0)
+    if case == 'inflate':
+        assert f'base64Str: "{state["scene"]}"' in docs[0]
+        assert requests == []
+    elif case == 'bad_gzip':
+        assert 'could not load the viewer page' in docs[0]
+        assert requests == []
+    elif case == 'no_kernel':
+        assert (
+            'viewer page: this browser cannot unpack the viewer page without a running kernel'
+            in docs[0]
+        )
+        assert requests == []
+    elif case == 'plain_cached':
+        assert docs[0].startswith('<html><body><p>plain</p>')
+        assert f'base64Str: "{state["scene"]}"' in docs[0]
+        assert requests == []
+    else:
+        assert docs[0].startswith('<html><body><p>plain</p>')
+        assert f'base64Str: "{state["scene"]}"' in docs[0]
+        assert [r['plain'] for r in requests] == [True]
+
+
 _SCENE_EVENTS_JS = """async ([esm, state, page]) => {
   const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
   const viewer = state._viewer_page.replace('IPY_MODEL_', '');
@@ -187,7 +292,9 @@ _SCENE_EVENTS_JS = """async ([esm, state, page]) => {
     get: (key) => state[key],
     on: (event, handler) => { (handlers[event] ||= new Set()).add(handler); },
     off: (event, handler) => { handlers[event]?.delete(handler); },
-    widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
+    widget_manager: {
+      get_model: async (id) => ({get: (key) => (id === viewer && key === 'html_gz' ? page : '')}),
+    },
   };
   const el = document.createElement('div');
   document.body.appendChild(el);
@@ -218,7 +325,7 @@ def test_embeddable_widget_follows_style_and_cleans_up() -> None:
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
         width, handlers = page.evaluate(
-            _SCENE_EVENTS_JS, [_SCENE_ESM, state, widget._viewer_page.html]
+            _SCENE_EVENTS_JS, [_SCENE_ESM, state, widget._viewer_page.html_gz]
         )
         browser.close()
     assert width == '123px'
