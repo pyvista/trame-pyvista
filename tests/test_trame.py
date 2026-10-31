@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import gzip
 import importlib
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -20,6 +20,7 @@ from pyvista import examples
 from trame.app import get_server
 from trame_vtk.tools.vtksz2html import HTML_VIEWER_PATH
 
+from trame_pyvista import jupyter
 from trame_pyvista.jupyter import _HTML_ONLY_KWARGS
 from trame_pyvista.jupyter import EmbeddableWidget
 from trame_pyvista.jupyter import TrameServerDownError
@@ -692,13 +693,33 @@ def _show_html(**kwargs):
     return pl.show(jupyter_backend='html', return_viewer=True, jupyter_kwargs=kwargs)
 
 
+def test_scene_esm_with_page_carries_gzipped_page():
+    esm = jupyter._scene_esm_with_page()
+    assert esm.startswith(f'const VIEWER_PAGE_GZ = "{jupyter._viewer_page_gz()}";')
+    assert esm.split('\n', 1)[1] == jupyter._SCENE_ESM.split('\n', 1)[1]
+    assert len(esm) < len(Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')) / 2
+
+
 def test_embeddable_widgets_share_viewer_page():
     first, second = _show_html(), _show_html()
     page = first._viewer_page
     assert page is second._viewer_page
-    assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    assert page.html_gz == jupyter._viewer_page_gz()
+    html_gz = base64.b64decode(page.html_gz)
+    assert gzip.decompress(html_gz) == Path(HTML_VIEWER_PATH).read_bytes()
+    assert len(html_gz) < len(gzip.decompress(html_gz)) / 2
     assert base64.b64decode(first.scene)[:2] == b'PK'
     assert first.get_state()['_viewer_page'] == f'IPY_MODEL_{page.model_id}'
+
+
+def test_viewer_page_sends_plain_html_on_request():
+    page = _show_html()._viewer_page
+    assert page.html == ''
+    page.set_state({'plain': True})
+    try:
+        assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    finally:
+        page.close()
 
 
 @pytest.mark.parametrize('close', ['widget', 'comm'])
@@ -765,9 +786,7 @@ def test_marimo_esm_carries_the_viewer_page(monkeypatch: pytest.MonkeyPatch):
     first, second = _show_html(), _show_html()
     assert first._viewer_page is None
     assert first._esm == second._esm == jupyter._scene_esm_with_page()
-    page = Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
-    assert f'const VIEWER_PAGE = {json.dumps(page)};' in first._esm
-    assert 'const VIEWER_PAGE = null;' in jupyter._SCENE_ESM
+    assert f'const VIEWER_PAGE_GZ = "{jupyter._viewer_page_gz()}";' in first._esm
     monkeypatch.setattr(jupyter, '_in_marimo', lambda: False)
     widget = _show_html()
     assert widget._esm == jupyter._SCENE_ESM
