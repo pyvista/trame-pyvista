@@ -186,7 +186,7 @@ def test_embeddable_widget_renders_in_browser(viewer_page: str) -> None:
         browser.close()
 
 
-_SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel]) => {
+_SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel, cached]) => {
   const load = () => import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
   if (dropInflate) delete window.DecompressionStream;
   let inflations = 0;
@@ -196,7 +196,7 @@ _SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel]) =>
       constructor(format) { super(format); inflations += 1; }
     };
   }
-  const viewerState = {html_gz: gz, html: '', plain: false};
+  const viewerState = {html_gz: gz, html: cached ? html : '', plain: cached};
   const requests = [];
   const viewer = {
     comm_live: !noKernel,
@@ -226,7 +226,9 @@ _SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel]) =>
 
 
 @pytest.mark.needs_playwright
-@pytest.mark.parametrize('case', ['inflate', 'no_inflate', 'no_gz', 'bad_gzip', 'no_kernel'])
+@pytest.mark.parametrize(
+    'case', ['inflate', 'no_inflate', 'no_gz', 'bad_gzip', 'no_kernel', 'plain_cached']
+)
 def test_embeddable_widget_falls_back(case: str) -> None:
     """Fall back to the plain viewer page, or show the error."""
     from playwright.sync_api import sync_playwright
@@ -240,14 +242,22 @@ def test_embeddable_widget_falls_back(case: str) -> None:
     html = '<html><body><p>plain</p></body></html>'
     real_gz = widget._viewer_page.html_gz
     gz = {'bad_gzip': 'QUJD', 'no_gz': ''}.get(case, real_gz)
-    drop_inflate = case in ('no_inflate', 'no_kernel')
+    drop_inflate = case in ('no_inflate', 'no_kernel', 'plain_cached')
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
         docs, requests, inflations = page.evaluate(
             _SCENE_FALLBACK_JS,
-            [_SCENE_ESM, state, gz, html, drop_inflate, case == 'no_kernel'],
+            [
+                _SCENE_ESM,
+                state,
+                gz,
+                html,
+                drop_inflate,
+                case == 'no_kernel',
+                case == 'plain_cached',
+            ],
         )
         browser.close()
     assert docs[0] == docs[1]
@@ -259,7 +269,14 @@ def test_embeddable_widget_falls_back(case: str) -> None:
         assert 'could not load the viewer page' in docs[0]
         assert requests == []
     elif case == 'no_kernel':
-        assert 'cannot unpack the viewer page without a running kernel' in docs[0]
+        assert (
+            'viewer page: this browser cannot unpack the viewer page without a running kernel'
+            in docs[0]
+        )
+        assert requests == []
+    elif case == 'plain_cached':
+        assert docs[0].startswith('<html><body><p>plain</p>')
+        assert f'base64Str: "{state["scene"]}"' in docs[0]
         assert requests == []
     else:
         assert docs[0].startswith('<html><body><p>plain</p>')

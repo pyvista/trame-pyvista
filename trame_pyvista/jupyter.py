@@ -120,10 +120,7 @@ async function plainPage(viewer) {
     if (viewer.comm_live === false) {
       throw new Error('this browser cannot unpack the viewer page without a running kernel');
     }
-    const filled = new Promise((resolve, reject) => {
-      viewer.once('change:html', resolve);
-      setTimeout(() => reject(new Error('timed out waiting for the kernel')), 10000);
-    });
+    const filled = new Promise((resolve) => viewer.once('change:html', resolve));
     viewer.set('plain', true);
     viewer.save_changes();
     await filled;
@@ -164,7 +161,7 @@ async function render({ model, el }) {
       iframe.srcdoc = page.slice(0, end) + script + page.slice(end);
     } catch (err) {
       const text = document.createElement('pre');
-      text.textContent = `trame-pyvista could not load the viewer page: ${err}`;
+      text.textContent = `trame-pyvista could not load the viewer page: ${err.message ?? err}`;
       iframe.srcdoc = text.outerHTML;
     }
   };
