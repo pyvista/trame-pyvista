@@ -90,7 +90,9 @@ _RENDER_SCENE_JS = """async ([esm, state, page]) => {
     get: (key) => window.sceneState[key],
     on: (_, handler) => { window.sceneChanged = handler; },
     off: () => {},
-    widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
+    widget_manager: {
+      get_model: async (id) => ({get: (key) => (id === viewer && key === 'html_gz' ? page : '')}),
+    },
   };
   const el = document.createElement('div');
   document.body.appendChild(el);
@@ -179,15 +181,24 @@ def test_embeddable_widget_renders_in_browser() -> None:
         browser.close()
 
 
-_SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate]) => {
-  const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
+_SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel]) => {
+  const load = () => import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
   if (dropInflate) delete window.DecompressionStream;
+  let inflations = 0;
+  if (window.DecompressionStream) {
+    const Inflate = window.DecompressionStream;
+    window.DecompressionStream = class extends Inflate {
+      constructor(format) { super(format); inflations += 1; }
+    };
+  }
   const viewerState = {html_gz: gz, html: '', plain: false};
   const requests = [];
   const viewer = {
+    comm_live: !noKernel,
     get: (key) => viewerState[key],
     set: (key, value) => { viewerState[key] = value; },
     save_changes: () => {
+      if (noKernel) return;
       requests.push({...viewerState});
       viewerState.html = html;
       setTimeout(() => viewer.filled?.(), 0);
@@ -203,14 +214,14 @@ _SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate]) => {
   const els = [document.createElement('div'), document.createElement('div')];
   for (const el of els) {
     document.body.appendChild(el);
-    await mod.default.render({model, el});
+    await (await load()).default.render({model, el});
   }
-  return [els.map((el) => el.querySelector('iframe').srcdoc), requests];
+  return [els.map((el) => el.querySelector('iframe').srcdoc), requests, inflations];
 }"""
 
 
 @pytest.mark.needs_playwright
-@pytest.mark.parametrize('case', ['no_inflate', 'old_notebook', 'bad_gzip'])
+@pytest.mark.parametrize('case', ['inflate', 'no_inflate', 'no_gz', 'bad_gzip', 'no_kernel'])
 def test_embeddable_widget_falls_back(case: str) -> None:
     """Fall back to the plain viewer page, or show the error."""
     from playwright.sync_api import sync_playwright
@@ -222,18 +233,28 @@ def test_embeddable_widget_falls_back(case: str) -> None:
     widget = pl.show(jupyter_backend='html', return_viewer=True)
     state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
     html = '<html><body><p>plain</p></body></html>'
-    gz = {'no_inflate': widget._viewer_page.html_gz, 'old_notebook': '', 'bad_gzip': 'QUJD'}[case]
+    real_gz = widget._viewer_page.html_gz
+    gz = {'bad_gzip': 'QUJD', 'no_gz': ''}.get(case, real_gz)
+    drop_inflate = case in ('no_inflate', 'no_kernel')
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
-        docs, requests = page.evaluate(
-            _SCENE_FALLBACK_JS, [_SCENE_ESM, state, gz, html, case == 'no_inflate']
+        docs, requests, inflations = page.evaluate(
+            _SCENE_FALLBACK_JS,
+            [_SCENE_ESM, state, gz, html, drop_inflate, case == 'no_kernel'],
         )
         browser.close()
     assert docs[0] == docs[1]
-    if case == 'bad_gzip':
+    assert inflations == {'inflate': 1, 'bad_gzip': 2}.get(case, 0)
+    if case == 'inflate':
+        assert f'base64Str: "{state["scene"]}"' in docs[0]
+        assert requests == []
+    elif case == 'bad_gzip':
         assert 'could not load the viewer page' in docs[0]
+        assert requests == []
+    elif case == 'no_kernel':
+        assert 'cannot unpack the viewer page without a running kernel' in docs[0]
         assert requests == []
     else:
         assert docs[0].startswith('<html><body><p>plain</p>')
@@ -249,7 +270,9 @@ _SCENE_EVENTS_JS = """async ([esm, state, page]) => {
     get: (key) => state[key],
     on: (event, handler) => { (handlers[event] ||= new Set()).add(handler); },
     off: (event, handler) => { handlers[event]?.delete(handler); },
-    widget_manager: {get_model: async (id) => ({get: () => (id === viewer ? page : '')})},
+    widget_manager: {
+      get_model: async (id) => ({get: (key) => (id === viewer && key === 'html_gz' ? page : '')}),
+    },
   };
   const el = document.createElement('div');
   document.body.appendChild(el);

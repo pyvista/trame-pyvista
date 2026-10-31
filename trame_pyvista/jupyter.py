@@ -108,7 +108,7 @@ export default { render };
 
 # JavaScript module (ESM) that anywidget runs in the browser to draw each scene's iframe
 _SCENE_ESM = """
-const pages = new Map();
+const pages = (globalThis.__tramePyvistaPages ||= new WeakMap());
 async function inflate(gzipBase64) {
   const bytes = Uint8Array.from(atob(gzipBase64), (c) => c.charCodeAt(0));
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -116,21 +116,27 @@ async function inflate(gzipBase64) {
 }
 async function plainPage(viewer) {
   if (!viewer.get('html')) {
-    const filled = new Promise((resolve) => viewer.once('change:html', resolve));
+    if (viewer.comm_live === false) {
+      throw new Error('this browser cannot unpack the viewer page without a running kernel');
+    }
+    const filled = new Promise((resolve, reject) => {
+      viewer.once('change:html', resolve);
+      setTimeout(() => reject(new Error('timed out waiting for the kernel')), 10000);
+    });
     viewer.set('plain', true);
     viewer.save_changes();
     await filled;
   }
   return viewer.get('html');
 }
-function viewerPage(viewer, id) {
-  if (!pages.has(id)) {
+function viewerPage(viewer) {
+  if (!pages.has(viewer)) {
     const gz = viewer.get('html_gz');
     const canInflate = gz && typeof DecompressionStream !== 'undefined';
     const page = canInflate ? inflate(gz) : plainPage(viewer);
-    pages.set(id, page.catch((err) => { pages.delete(id); throw err; }));
+    pages.set(viewer, page.catch((err) => { pages.delete(viewer); throw err; }));
   }
-  return pages.get(id);
+  return pages.get(viewer);
 }
 async function render({ model, el }) {
   const iframe = document.createElement('iframe');
@@ -141,7 +147,7 @@ async function render({ model, el }) {
     try {
       const ref = model.get('_viewer_page');
       const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
-      const page = await viewerPage(await model.widget_manager.get_model(id), id);
+      const page = await viewerPage(await model.widget_manager.get_model(id));
       const scene = model.get('scene');
       const script = '<script>function loadDataSet() {'
         + "const container = document.querySelector('.content') || document.querySelector('body');"

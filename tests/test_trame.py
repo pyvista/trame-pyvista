@@ -661,8 +661,11 @@ def test_embeddable_widgets_share_viewer_page():
 def test_viewer_page_sends_plain_html_on_request():
     page = _show_html()._viewer_page
     assert page.html == ''
-    page.plain = True
-    assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    page.set_state({'plain': True})
+    try:
+        assert page.html == Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')
+    finally:
+        page.close()
 
 
 @pytest.mark.parametrize('close', ['widget', 'comm'])
