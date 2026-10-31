@@ -107,8 +107,9 @@ export default { render };
 """
 
 # JavaScript module (ESM) that anywidget runs in the browser to draw each scene's iframe
-_SCENE_ESM = """
+_SCENE_ESM = """const VIEWER_PAGE_GZ = null;
 const pages = (globalThis.__tramePyvistaPages ||= new WeakMap());
+let embeddedPage = null;
 async function inflate(gzipBase64) {
   const bytes = Uint8Array.from(atob(gzipBase64), (c) => c.charCodeAt(0));
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -138,6 +139,15 @@ function viewerPage(viewer) {
   }
   return pages.get(viewer);
 }
+async function scenePage(model) {
+  const ref = model.get('_viewer_page');
+  if (!ref) {
+    embeddedPage ||= inflate(VIEWER_PAGE_GZ).catch((err) => { embeddedPage = null; throw err; });
+    return embeddedPage;
+  }
+  const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
+  return viewerPage(await model.widget_manager.get_model(id));
+}
 async function render({ model, el }) {
   const iframe = document.createElement('iframe');
   iframe.className = 'pyvista';
@@ -145,9 +155,7 @@ async function render({ model, el }) {
   const update = async () => {
     iframe.style.cssText = model.get('iframe_style');
     try {
-      const ref = model.get('_viewer_page');
-      const id = typeof ref === 'string' ? ref.replace('IPY_MODEL_', '') : ref.model_id;
-      const page = await viewerPage(await model.widget_manager.get_model(id));
+      const page = await scenePage(model);
       const scene = model.get('scene');
       const script = '<script>function loadDataSet() {'
         + "const container = document.querySelector('.content') || document.querySelector('body');"
@@ -271,6 +279,13 @@ def _viewer_page_gz() -> str:
     return base64.b64encode(page).decode('ascii')
 
 
+@functools.cache
+def _scene_esm_with_page() -> str:
+    """Return the scene ESM carrying the gzipped viewer page, for scenes without a shared page."""
+    page = f'const VIEWER_PAGE_GZ = "{_viewer_page_gz()}";'
+    return _SCENE_ESM.replace('const VIEWER_PAGE_GZ = null;', page, 1)
+
+
 def _is_closed(widget) -> bool:
     """Return whether the widget's comm is gone."""
     return widget.comm is None or getattr(widget.comm, '_closed', False)
@@ -292,7 +307,9 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     if AnyWidget is not object:
         scene = traitlets.Unicode('').tag(sync=True)
         iframe_style = traitlets.Unicode('').tag(sync=True)
-        _viewer_page = traitlets.Instance(_ViewerPage).tag(sync=True, **widget_serialization)
+        _viewer_page = traitlets.Instance(_ViewerPage, allow_none=True).tag(
+            sync=True, **widget_serialization
+        )
 
     def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""

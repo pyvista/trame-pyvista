@@ -646,6 +646,13 @@ def _show_html(**kwargs):
     return pl.show(jupyter_backend='html', return_viewer=True, jupyter_kwargs=kwargs)
 
 
+def test_scene_esm_with_page_carries_gzipped_page():
+    esm = jupyter._scene_esm_with_page()
+    assert esm.startswith(f'const VIEWER_PAGE_GZ = "{jupyter._viewer_page_gz()}";')
+    assert esm.split('\n', 1)[1] == jupyter._SCENE_ESM.split('\n', 1)[1]
+    assert len(esm) < len(Path(HTML_VIEWER_PATH).read_text(encoding='utf-8')) / 2
+
+
 def test_embeddable_widgets_share_viewer_page():
     first, second = _show_html(), _show_html()
     page = first._viewer_page

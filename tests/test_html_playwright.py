@@ -84,7 +84,7 @@ def test_offlineviewer_interactive(tmp_path: Path) -> None:
 
 _RENDER_SCENE_JS = """async ([esm, state, page]) => {
   const mod = await import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
-  const viewer = state._viewer_page.replace('IPY_MODEL_', '');
+  const viewer = state._viewer_page?.replace('IPY_MODEL_', '');
   window.sceneState = state;
   const model = {
     get: (key) => window.sceneState[key],
@@ -141,22 +141,27 @@ def test_widget_renders_in_browser() -> None:
 
 
 @pytest.mark.needs_playwright
-def test_embeddable_widget_renders_in_browser() -> None:
+@pytest.mark.parametrize('viewer_page', ['shared', 'embedded'])
+def test_embeddable_widget_renders_in_browser(viewer_page: str) -> None:
     """Render an html backend widget through its anywidget module with a stand-in model."""
     from playwright.sync_api import sync_playwright
 
     from trame_pyvista.jupyter import _SCENE_ESM
+    from trame_pyvista.jupyter import _scene_esm_with_page
 
     pl = pv.Plotter(notebook=True)
     pl.add_mesh(pv.Sphere())
     widget = pl.show(jupyter_backend='html', return_viewer=True)
     state = {key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')}
+    esm = _SCENE_ESM
+    if viewer_page == 'embedded':
+        esm, state['_viewer_page'] = _scene_esm_with_page(), None
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content('<html><body></body></html>')
-        page.evaluate(_RENDER_SCENE_JS, [_SCENE_ESM, state, widget._viewer_page.html_gz])
+        page.evaluate(_RENDER_SCENE_JS, [esm, state, widget._viewer_page.html_gz])
         canvas = page.frame_locator('iframe.pyvista').locator('canvas')
         canvas.wait_for(timeout=10000)
         iframe = page.locator('iframe.pyvista')
