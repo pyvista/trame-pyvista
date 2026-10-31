@@ -173,6 +173,29 @@ async function render({ model, el }) {
 export default { render };
 """
 
+
+def _in_marimo() -> bool:
+    """Return whether this code runs in a marimo notebook."""
+    marimo = sys.modules.get('marimo')
+    return marimo is not None and marimo.running_in_notebook()
+
+
+_MARIMO_FLOOR = '0.23.14'
+
+
+@functools.cache
+def _warn_old_marimo() -> None:
+    """Warn once when this marimo sends the viewer page with every html plot."""
+    from packaging.version import Version
+
+    version = sys.modules['marimo'].__version__
+    if Version(version) < Version(_MARIMO_FLOOR):
+        warn_external(
+            f'marimo {version} sends the viewer page with every html plot. Upgrade to marimo '
+            f'{_MARIMO_FLOOR} or newer to load it once per notebook.'
+        )
+
+
 _HTML_ONLY_KWARGS = (
     'style',
     'description',
@@ -300,7 +323,7 @@ def _get_viewer_page() -> _ViewerPage:
 
 
 class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
-    """Iframe widget rendering an exported scene with the shared trame-vtk viewer page."""
+    """Iframe widget rendering an exported scene with the trame-vtk viewer page."""
 
     _esm = _SCENE_ESM
     if AnyWidget is not object:
@@ -318,10 +341,14 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
         # eventually we could maybe expose this, but for now make sure we're at least
         # consistent with matplotlib's color (light gray)
         border = 'border: 1px solid rgb(221,221,221);'
+        if _in_marimo():
+            _warn_old_marimo()
+            kwargs.update(_esm=_scene_esm_with_page(), _viewer_page=None)
+        else:
+            kwargs['_viewer_page'] = _get_viewer_page()
         super().__init__(
             scene=base64.b64encode(data).decode('ascii'),
             iframe_style=f'width: {width}; height: {height}; {border}',
-            _viewer_page=_get_viewer_page(),
             **kwargs,
         )
 
@@ -677,6 +704,22 @@ def show_trame(
     return Widget(viewer, src, iframe_attrs=iframe_attrs, **kwargs)
 
 
+_server_event_loop: asyncio.AbstractEventLoop | None = None
+_server_loop_lock = threading.Lock()
+
+
+def _server_loop() -> asyncio.AbstractEventLoop:
+    """Return the event loop that runs trame servers launched off the main thread."""
+    global _server_event_loop
+    with _server_loop_lock:
+        if _server_event_loop is None:
+            _server_event_loop = asyncio.new_event_loop()
+            threading.Thread(
+                target=_server_event_loop.run_forever, name='trame-pyvista-server', daemon=True
+            ).start()
+        return _server_event_loop
+
+
 def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
     """Elegantly launch the Trame server without await.
 
@@ -691,14 +734,26 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
     trame_server.core.Server
         The launched trame server.
 
+    In marimo, and off the main thread, the server runs on a dedicated daemon
+    thread with its own event loop.
+
     Warnings
     --------
-    This uses `nest_asyncio <https://github.com/erdewit/nest_asyncio>`_ which
+    On the main thread, this uses
+    `nest_asyncio2 <https://github.com/Chaoses-Ib/nest-asyncio2>`_ which
     patches the standard lib `asyncio` package and may have unintended
     consequences for some uses cases. We advise strongly to make sure PyVista's
     Jupyter backend is not set to use Trame when not in a Jupyter environment.
 
     """
+
+    async def launch_it():
+        """Launch the server and wait until it is ready."""
+        await launch_server(*args, **kwargs).ready
+
+    if _in_marimo() or threading.current_thread() is not threading.main_thread():
+        return asyncio.run_coroutine_threadsafe(launch_it(), _server_loop()).result()
+
     try:
         import nest_asyncio2
     except ImportError:
@@ -709,10 +764,6 @@ def elegantly_launch(*args, **kwargs):  # numpydoc ignore=PR01
             'await launch_server().ready'
         )
         raise ImportError(msg)
-
-    async def launch_it():
-        """Launch the server and wait until it is ready."""
-        await launch_server(*args, **kwargs).ready
 
     # Basically monkey patches asyncio to support this
     nest_asyncio2.apply()

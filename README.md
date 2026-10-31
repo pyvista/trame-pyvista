@@ -28,12 +28,25 @@ The notebook widgets are [anywidgets](https://anywidget.dev). When the
 Jupyter server runs in a separate environment from the kernel (JupyterHub,
 `nb_conda_kernels`), install `anywidget` in the server environment too.
 
+For [marimo](https://marimo.io):
+
+```bash
+pip install "trame-pyvista[marimo]"
+```
+
 ## What you get
 
 - **Jupyter backends**: `trame`, `server`, `client`, `html`. Registered
   with PyVista via the `pyvista.jupyter_backends` entry-point group, so
   `pv.set_jupyter_backend('trame')` works once `trame-pyvista` is
   installed.
+- **marimo**: with PyVista 0.50 or newer (`pip install "pyvista[marimo]"`),
+  `pl.show()` and `mesh.plot()` render inline and `jupyter_backend` or
+  `pv.set_jupyter_backend` picks the backend, as in Jupyter. With older
+  PyVista, end a cell with `pl.trame.show(mode=...)` instead. `html` works
+  in any marimo session, while `trame`, `server` and `client` need the
+  browser on the machine running marimo. See
+  [examples/marimo/viewer.py](examples/marimo/viewer.py).
 - **Plotter views**: `PyVistaLocalView`, `PyVistaRemoteView`,
   `PyVistaRemoteLocalView` for embedding in trame apps.
 - **`plotter.trame` namespace**: registered as a PyVista plotter

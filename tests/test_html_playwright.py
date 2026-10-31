@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 from http.server import SimpleHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import io
 import os
 from pathlib import Path
 import queue
+import socket
 import subprocess
 import sys
 from threading import Thread
@@ -183,6 +185,123 @@ def test_embeddable_widget_renders_in_browser(viewer_page: str) -> None:
         after = iframe.evaluate('e => e.srcdoc')
         assert 'base64Str: "QUJD"' in after
         assert before.replace(state['scene'], 'QUJD') == after
+        browser.close()
+
+
+@contextlib.contextmanager
+def _serve_marimo(notebook, *args):
+    """Serve ``notebook`` with ``marimo <args>`` on a free port and yield its URL."""
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+    proc = subprocess.Popen(
+        [sys.executable, '-m', 'marimo', *args, '--headless', '--port', str(port), notebook],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    output: queue.Queue[str] = queue.Queue()
+
+    def drain():
+        """Forward every output line so the pipe never fills."""
+        for line in proc.stdout:
+            output.put(line)
+
+    Thread(target=drain, daemon=True).start()
+    lines: list[str] = []
+    url = None
+    deadline = time.monotonic() + 90
+    try:
+        while url is None and time.monotonic() < deadline:
+            try:
+                line = output.get(timeout=1)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
+            lines.append(line)
+            if 'URL:' in line:
+                url = line.split('URL:')[1].strip()
+        assert url is not None, ''.join(lines)
+        yield url
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
+
+@pytest.fixture
+def marimo_notebook(tmp_path):
+    """Write the marimo plots notebook with cells running on open, and return its path."""
+    pytest.importorskip('marimo')
+    notebook = tmp_path / 'plots.py'
+    notebook.write_text((Path(__file__).parent / '_marimo_plots.py').read_text())
+    (tmp_path / 'pyproject.toml').write_text('[tool.marimo.runtime]\nauto_instantiate = true\n')
+    return notebook
+
+
+@pytest.fixture
+def marimo_url(marimo_notebook):
+    """Serve the plots notebook with ``marimo edit`` and yield its URL."""
+    with _serve_marimo(marimo_notebook, 'edit', '--no-token') as url:
+        yield url
+
+
+@pytest.fixture
+def marimo_run_url(marimo_notebook):
+    """Serve the plots notebook with ``marimo run``, closing sessions 2 s after they disconnect."""
+    with _serve_marimo(marimo_notebook, 'run', '--session-ttl', '2') as url:
+        yield url
+
+
+def _drawn_plots(page) -> list[bool]:
+    """Return whether each pyvista iframe's canvas differs between its centre and corner."""
+    drawn = []
+    for iframe in page.locator('iframe.pyvista').all():
+        canvas = iframe.content_frame.locator('canvas').first
+        for _ in range(60):
+            pixels = _png_pixels(canvas.screenshot())
+            height, width = pixels.shape[:2]
+            if not np.array_equal(pixels[height // 2, width // 2], pixels[2, 2]):
+                drawn.append(True)
+                break
+            page.wait_for_timeout(250)
+        else:
+            drawn.append(False)
+    return drawn
+
+
+@pytest.mark.needs_playwright
+def test_marimo_plots_survive_cell_rerun_and_reload(marimo_url) -> None:
+    """Run the plots in marimo, re-run the first plot cell, then reload the page."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={'width': 1200, 'height': 1400})
+        page.goto(marimo_url)
+        page.locator('iframe.pyvista').nth(2).wait_for(timeout=90000)
+        assert _drawn_plots(page) == [True, True, True]
+
+        first = page.locator('iframe.pyvista').first
+        before = first.evaluate('e => e.srcdoc')
+        page.locator('[data-testid=cell-editor]').nth(1).click()
+        page.keyboard.press('Shift+Enter')
+        for _ in range(240):
+            page.wait_for_timeout(250)
+            if first.evaluate('e => e.srcdoc') != before:
+                break
+        else:
+            pytest.fail('Re-running the cell did not replace its plot.')
+        assert _drawn_plots(page) == [True, True, True]
+
+        page.reload()
+        page.locator('iframe.pyvista').nth(2).wait_for(timeout=60000)
+        assert _drawn_plots(page) == [True, True, True]
         browser.close()
 
 
@@ -506,3 +625,31 @@ def test_jupyter_app_renders_in_browser(served_plotter) -> None:
         browser.close()
 
     assert page_errors == []
+
+
+def _open_drawn_session(browser, url):
+    """Open ``url`` in a new browser context and assert all three plots draw."""
+    page = browser.new_context(viewport={'width': 1200, 'height': 1400}).new_page()
+    page.goto(url)
+    page.locator('iframe.pyvista').nth(2).wait_for(timeout=90000)
+    assert _drawn_plots(page) == [True, True, True]
+    return page
+
+
+@pytest.mark.needs_playwright
+def test_marimo_run_sessions_keep_their_plots(marimo_run_url) -> None:
+    """Open two ``marimo run`` sessions, close one, then reload the other and open a third."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        first = _open_drawn_session(browser, marimo_run_url)
+        second = _open_drawn_session(browser, marimo_run_url)
+        first.context.close()
+        second.wait_for_timeout(4000)
+
+        second.reload()
+        second.locator('iframe.pyvista').nth(2).wait_for(timeout=60000)
+        assert _drawn_plots(second) == [True, True, True]
+        _open_drawn_session(browser, marimo_run_url)
+        browser.close()
