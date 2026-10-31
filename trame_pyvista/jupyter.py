@@ -247,16 +247,18 @@ class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Hidden anywidget holding the trame-vtk viewer page that scene widgets share."""
 
     _esm = 'export default { render() {} };'
-    if AnyWidget is not object:
-        html_gz = traitlets.Unicode('').tag(sync=True)
-        html = traitlets.Unicode('').tag(sync=True)
-        plain = traitlets.Bool(False).tag(sync=True)
+    html_gz = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
+    html = traitlets.Unicode('').tag(sync=True) if AnyWidget is not object else None
+    plain = traitlets.Bool(False).tag(sync=True) if AnyWidget is not object else None
 
-        @traitlets.observe('plain')
-        def _send_plain(self, change) -> None:
-            """Send the plain viewer page."""
-            if change['new']:
-                self.html = _viewer_page_text()
+    def __init__(self, **kwargs):
+        """Initialize."""
+        super().__init__(**kwargs)
+        self.observe(self._send_plain, 'plain')
+
+    def _send_plain(self, change) -> None:
+        """Send the plain viewer page."""
+        self.html = _viewer_page_text()
 
 
 _shared_viewer_page: _ViewerPage | None = None
