@@ -25,7 +25,7 @@ def _collect() -> list:
     scripts = sorted(
         str(path.relative_to(EXAMPLES_DIR))
         for path in EXAMPLES_DIR.rglob('*.py')
-        if '__pycache__' not in path.parts
+        if '__pycache__' not in path.parts and 'marimo' not in path.parts
     )
     skip = pytest.mark.skipif(not HAS_VTK_94, reason='needs VTK >= 9.4')
     return [pytest.param(s, marks=skip) if s in NEEDS_VTK_94 else s for s in scripts]
@@ -50,3 +50,38 @@ def test_serve(script: str, tmp_path: Path) -> None:
         timeout=90,
     )
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize('script', sorted(p.name for p in (EXAMPLES_DIR / 'marimo').glob('*.py')))
+def test_marimo(script: str) -> None:
+    """Run each marimo notebook as a script."""
+    pytest.importorskip('marimo')
+    env = {**os.environ, 'PYVISTA_OFF_SCREEN': 'true'}
+    result = subprocess.run(
+        [sys.executable, str(EXAMPLES_DIR / 'marimo' / script)],
+        check=False,
+        env=env,
+        timeout=90,
+    )
+    assert result.returncode == 0
+
+
+@pytest.mark.parametrize(
+    'notebook',
+    [
+        *sorted((EXAMPLES_DIR / 'marimo').glob('*.py')),
+        Path(__file__).parent / '_marimo_plots.py',
+    ],
+    ids=lambda path: path.name,
+)
+def test_marimo_check(notebook: Path) -> None:
+    """Lint each marimo notebook with ``marimo check --strict``."""
+    pytest.importorskip('marimo')
+    result = subprocess.run(
+        [sys.executable, '-m', 'marimo', 'check', '--strict', str(notebook)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

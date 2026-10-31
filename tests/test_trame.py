@@ -110,17 +110,39 @@ def test_launch_server_with_jupyter_kernel_argv():
 def test_launch_server_off_main_thread():
     # marimo run executes app cells in worker threads, where signal handlers cannot be installed.
     code = (
-        'import threading\n'
+        'import threading, urllib.request\n'
         'from trame.app import get_server\n'
         'from trame_pyvista.jupyter import elegantly_launch\n'
-        'ok = []\n'
         'def run():\n'
         "    elegantly_launch('off-main')\n"
-        "    ok.append(get_server(name='off-main').running)\n"
         'thread = threading.Thread(target=run)\n'
         'thread.start()\n'
         'thread.join(60)\n'
-        'assert ok == [True], ok\n'
+        "port = get_server(name='off-main').port\n"
+        "with urllib.request.urlopen(f'http://127.0.0.1:{port}/index.html', timeout=10) as r:\n"
+        '    assert r.status == 200\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_off_main_launches_share_one_loop_thread():
+    code = (
+        'import threading\n'
+        'from trame_pyvista.jupyter import elegantly_launch\n'
+        "for name in ('first', 'second'):\n"
+        '    thread = threading.Thread(target=elegantly_launch, args=(name,))\n'
+        '    thread.start()\n'
+        '    thread.join(60)\n'
+        "loops = [t for t in threading.enumerate() if t.name == 'trame-pyvista-server']\n"
+        'assert len(loops) == 1, loops\n'
     )
     result = subprocess.run(
         [sys.executable, '-c', code],
@@ -161,6 +183,31 @@ def test_elegantly_launch_inside_running_loop():
         'async def cell():\n'
         "    elegantly_launch('in-loop')\n"
         "    assert get_server(name='in-loop').running\n"
+        'asyncio.run(cell())\n'
+    )
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, 'PYVISTA_OFF_SCREEN': 'true'},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_elegantly_launch_in_marimo_uses_server_thread():
+    # marimo runs cells on its kernel loop, which a nested loop corrupts.
+    code = (
+        'import asyncio, sys\n'
+        'from trame.app import get_server\n'
+        'from trame_pyvista import jupyter\n'
+        'jupyter._in_marimo = lambda: True\n'
+        'async def cell():\n'
+        "    jupyter.elegantly_launch('in-marimo')\n"
+        "    assert get_server(name='in-marimo').running\n"
+        "    assert 'nest_asyncio2' not in sys.modules\n"
+        '    assert jupyter._server_event_loop is not None\n'
         'asyncio.run(cell())\n'
     )
     result = subprocess.run(
@@ -729,6 +776,71 @@ def test_widget_ignores_html_kwargs(key):
     with pytest.warns(UserWarning, match=rf'Ignoring `{key}`: no effect'):
         widget = Widget(None, 'http://x', **{key: 'x'})
     assert key not in widget.get_state()
+
+
+def test_marimo_esm_carries_the_viewer_page(monkeypatch: pytest.MonkeyPatch):
+    from trame_pyvista import jupyter
+
+    pytest.importorskip('marimo')
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    first, second = _show_html(), _show_html()
+    assert first._viewer_page is None
+    assert first._esm == second._esm == jupyter._scene_esm_with_page()
+    assert f'const VIEWER_PAGE_GZ = "{jupyter._viewer_page_gz()}";' in first._esm
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: False)
+    widget = _show_html()
+    assert widget._esm == jupyter._SCENE_ESM
+    assert widget._viewer_page is jupyter._get_viewer_page()
+
+
+@pytest.mark.parametrize('version', ['0.14.12', '0.23.13'])
+def test_old_marimo_warns_once(monkeypatch: pytest.MonkeyPatch, version: str):
+    from trame_pyvista import jupyter
+
+    marimo = pytest.importorskip('marimo')
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    monkeypatch.setattr(marimo, '__version__', version)
+    jupyter._warn_old_marimo.cache_clear()
+    with pytest.warns(UserWarning, match=rf'marimo {version} sends the viewer page'):
+        _show_html()
+    _show_html()
+    jupyter._warn_old_marimo.cache_clear()
+    monkeypatch.setattr(marimo, '__version__', jupyter._MARIMO_FLOOR)
+    _show_html()
+    jupyter._warn_old_marimo.cache_clear()
+
+
+def test_in_marimo(monkeypatch: pytest.MonkeyPatch):
+    from trame_pyvista import jupyter
+
+    marimo = pytest.importorskip('marimo')
+    assert jupyter._in_marimo() is False
+    monkeypatch.setattr(marimo, 'running_in_notebook', lambda: True)
+    assert jupyter._in_marimo() is True
+    monkeypatch.delitem(sys.modules, 'marimo')
+    assert jupyter._in_marimo() is False
+
+
+def test_marimo_script_run_shares_the_viewer_page():
+    marimo = pytest.importorskip('marimo')
+    app = marimo.App()
+
+    @app.cell
+    def _():
+        import pyvista as pv
+
+        from trame_pyvista import jupyter
+
+        in_marimo = jupyter._in_marimo()
+        pl = pv.Plotter()
+        pl.add_mesh(pv.Sphere())
+        widget = pl.trame.show(mode='html')
+        return in_marimo, jupyter, widget
+
+    _, defs = app.run()
+    assert defs['in_marimo'] is False
+    assert defs['widget']._esm == defs['jupyter']._SCENE_ESM
+    assert defs['widget']._viewer_page is defs['jupyter']._get_viewer_page()
 
 
 def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):
