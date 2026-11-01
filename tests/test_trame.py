@@ -847,11 +847,41 @@ def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):
     from trame_pyvista import jupyter
 
     monkeypatch.setattr(jupyter, 'AnyWidget', object)
+    monkeypatch.setattr(jupyter, 'HTML', object)
     with pytest.raises(ImportError, match=r"pip install 'pyvista\[jupyter\]'"):
         jupyter.Widget(viewer=None, src=None)
 
     with pytest.raises(ImportError, match=r"pip install 'pyvista\[jupyter\]'"):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
+
+
+def test_ipywidgets_fallback_is_deprecated(monkeypatch: pytest.MonkeyPatch):
+    from ipywidgets import HTML
+
+    from trame_pyvista import jupyter
+
+    viewer = object()
+    expected = jupyter.Widget(viewer, 'http://x', width='10px', height='20px')
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Sphere())
+    expected_scene = jupyter.EmbeddableWidget(pl, width='100%', height='600px')
+
+    monkeypatch.setattr(jupyter, 'AnyWidget', object)
+    with pytest.warns(FutureWarning, match=r'ipywidgets alone is deprecated'):
+        widget = jupyter.Widget(
+            viewer, 'http://x', width='10px', height='20px', description='sphere'
+        )
+    assert type(widget) is jupyter._HTMLWidget
+    assert isinstance(widget, HTML)
+    assert widget.value == expected.value
+    assert widget.description == 'sphere'
+    assert widget.viewer is viewer
+    assert widget.src == 'http://x'
+
+    with pytest.warns(FutureWarning, match=r'ipywidgets alone is deprecated'):
+        scene = jupyter.EmbeddableWidget(pl, width='100%', height='600px')
+    assert type(scene) is jupyter._HTMLEmbeddableWidget
+    assert scene.value == expected_scene.value
 
 
 def test_launch_server_defaults():

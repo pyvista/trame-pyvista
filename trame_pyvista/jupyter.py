@@ -32,6 +32,11 @@ try:
 except ImportError:  # pragma: no cover
     AnyWidget = object  # type: ignore[misc,assignment]
 
+try:
+    from ipywidgets import HTML
+except ImportError:  # pragma: no cover
+    HTML = object  # type: ignore[misc,assignment]
+
 
 import pyvista as pv
 
@@ -206,14 +211,13 @@ _HTML_ONLY_KWARGS = (
 
 
 def _require_anywidget():
-    """Raise when anywidget is not installed."""
-    if AnyWidget is object:
-        msg = (
-            'Notebook plotting requires `anywidget`. Install it with '
-            "`pip install 'pyvista[jupyter]'`, `pip install 'trame-pyvista[jupyter]'`, "
-            'or `pip install anywidget`.'
-        )
-        raise ImportError(msg)
+    """Raise that anywidget is not installed."""
+    msg = (
+        'Notebook plotting requires `anywidget`. Install it with '
+        "`pip install 'pyvista[jupyter]'`, `pip install 'trame-pyvista[jupyter]'`, "
+        'or `pip install anywidget`.'
+    )
+    raise ImportError(msg)
 
 
 def _pop_html_only_kwargs(kwargs):
@@ -224,6 +228,47 @@ def _pop_html_only_kwargs(kwargs):
         warn_external(f'Ignoring {names}: no effect on trame-pyvista notebook widgets.')
 
 
+def _warn_ipywidgets_only():
+    """Warn that showing plots with ipywidgets alone is deprecated, or raise without ipywidgets."""
+    if HTML is object:
+        _require_anywidget()
+    warn_external(
+        'Showing trame-pyvista plots with ipywidgets alone is deprecated. Install anywidget with '
+        "`pip install 'pyvista[jupyter]'`, `pip install 'trame-pyvista[jupyter]'`, "
+        'or `pip install anywidget`.',
+        FutureWarning,
+    )
+
+
+def _iframe_style(width, height) -> str:
+    """Return the iframe style for the given size."""
+    # eventually we could maybe expose this, but for now make sure we're at least
+    # consistent with matplotlib's color (light gray)
+    border = 'border: 1px solid rgb(221,221,221);'
+    return f'width: {width}; height: {height}; {border}'
+
+
+def _iframe_value(src, width, height, iframe_attrs) -> str:
+    """Return the iframe markup showing ``src``."""
+    iframe_attrs = {
+        **(iframe_attrs or {}),
+        'src': src,
+        'class': 'pyvista',
+        'style': _iframe_style(width, height),
+        'scrolling': 'no',
+    }
+    iframe_attrs_str = ' '.join(f'{key}="{value!s}"' for key, value in iframe_attrs.items())
+    return f'<iframe {iframe_attrs_str}></iframe>'
+
+
+def _scene_iframe(scene: bytes, style: str) -> str:
+    """Return a standalone iframe embedding the full viewer page and ``scene``."""
+    page = io.StringIO()
+    write_html(scene, page)
+    src = page.getvalue().replace('&', '&amp;').replace('"', '&quot;')
+    return f'<iframe srcdoc="{src}" class="pyvista" style="{style}"></iframe>'
+
+
 class Widget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     """Custom HTML iframe widget for trame viewer."""
 
@@ -231,31 +276,17 @@ class Widget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     if AnyWidget is not object:
         value = traitlets.Unicode('').tag(sync=True)
 
+    def __new__(cls, *args, **kwargs):
+        """Create the widget, or the deprecated ipywidgets one when anywidget is missing."""
+        if AnyWidget is object:
+            _warn_ipywidgets_only()
+            return _HTMLWidget(*args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)
+
     def __init__(self, viewer, src, *, width=None, height=None, iframe_attrs=None, **kwargs):
         """Initialize."""
-        _require_anywidget()
         _pop_html_only_kwargs(kwargs)
-        # eventually we could maybe expose this, but for now make sure we're at least
-        # consistent with matplotlib's color (light gray)
-
-        if iframe_attrs is None:
-            iframe_attrs = {}
-
-        border = 'border: 1px solid rgb(221,221,221);'
-
-        iframe_attrs = {
-            **iframe_attrs,
-            'src': src,
-            'class': 'pyvista',
-            'style': f'width: {width}; height: {height}; {border}',
-            'scrolling': 'no',
-        }
-
-        iframe_attrs_str = ' '.join(f'{key}="{value!s}"' for key, value in iframe_attrs.items())
-
-        value = f'<iframe {iframe_attrs_str}></iframe>'
-
-        super().__init__(value=value, **kwargs)
+        super().__init__(value=_iframe_value(src, width, height, iframe_attrs), **kwargs)
         self._viewer = viewer
         self._src = src
 
@@ -268,6 +299,19 @@ class Widget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
     def src(self):  # numpydoc ignore=RT01
         """Get the src URL."""
         return self._src
+
+
+class _HTMLWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
+    """Deprecated ``ipywidgets.HTML`` iframe widget for the trame viewer without anywidget."""
+
+    viewer = Widget.viewer
+    src = Widget.src
+
+    def __init__(self, viewer, src, *, width=None, height=None, iframe_attrs=None, **kwargs):
+        """Initialize."""
+        super().__init__(_iframe_value(src, width, height, iframe_attrs), **kwargs)
+        self._viewer = viewer
+        self._src = src
 
 
 class _ViewerPage(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
@@ -337,14 +381,17 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
             sync=True, **widget_serialization
         )
 
+    def __new__(cls, *args, **kwargs):
+        """Create the widget, or the deprecated ipywidgets one when anywidget is missing."""
+        if AnyWidget is object:
+            _warn_ipywidgets_only()
+            return _HTMLEmbeddableWidget(*args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)
+
     def __init__(self, plotter, *, width, height, **kwargs):
         """Initialize."""
-        _require_anywidget()
         _pop_html_only_kwargs(kwargs)
         data = plotter.trame.export_vtksz(filename=None)
-        # eventually we could maybe expose this, but for now make sure we're at least
-        # consistent with matplotlib's color (light gray)
-        border = 'border: 1px solid rgb(221,221,221);'
         if _in_marimo():
             _warn_old_marimo()
             kwargs.update(_esm=_scene_esm_with_page(), _viewer_page=None)
@@ -352,17 +399,23 @@ class EmbeddableWidget(AnyWidget):  # type: ignore[misc]  # numpydoc ignore=PR01
             kwargs['_viewer_page'] = _get_viewer_page()
         super().__init__(
             scene=base64.b64encode(data).decode('ascii'),
-            iframe_style=f'width: {width}; height: {height}; {border}',
+            iframe_style=_iframe_style(width, height),
             **kwargs,
         )
 
     @property
     def value(self):  # numpydoc ignore=RT01
         """Get the standalone iframe HTML embedding the full viewer page and scene."""
-        page = io.StringIO()
-        write_html(base64.b64decode(self.scene), page)
-        src = page.getvalue().replace('&', '&amp;').replace('"', '&quot;')
-        return f'<iframe srcdoc="{src}" class="pyvista" style="{self.iframe_style}"></iframe>'
+        return _scene_iframe(base64.b64decode(self.scene), self.iframe_style)
+
+
+class _HTMLEmbeddableWidget(HTML):  # type: ignore[misc]  # numpydoc ignore=PR01
+    """Deprecated ``ipywidgets.HTML`` widget embedding an exported scene without anywidget."""
+
+    def __init__(self, plotter, *, width, height, **kwargs):
+        """Initialize."""
+        data = plotter.trame.export_vtksz(filename=None)
+        super().__init__(_scene_iframe(data, _iframe_style(width, height)), **kwargs)
 
 
 def launch_server(server=None, *, port=None, host=None, wslink_backend=None, **kwargs):
