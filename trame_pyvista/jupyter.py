@@ -211,7 +211,7 @@ _HTML_ONLY_KWARGS = (
 
 
 def _require_anywidget():
-    """Raise that anywidget is not installed."""
+    """Raise an ImportError naming the anywidget install commands."""
     msg = (
         'Notebook plotting requires `anywidget`. Install it with '
         "`pip install 'pyvista[jupyter]'`, `pip install 'trame-pyvista[jupyter]'`, "
