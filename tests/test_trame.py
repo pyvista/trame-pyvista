@@ -847,10 +847,10 @@ def test_anywidget_raises(monkeypatch: pytest.MonkeyPatch):
     from trame_pyvista import jupyter
 
     monkeypatch.setattr(jupyter, 'AnyWidget', object)
-    with pytest.raises(ImportError, match=r'Please install `anywidget`.'):
+    with pytest.raises(ImportError, match=r"pip install 'pyvista\[jupyter\]'"):
         jupyter.Widget(viewer=None, src=None)
 
-    with pytest.raises(ImportError, match=r'Please install `anywidget`.'):
+    with pytest.raises(ImportError, match=r"pip install 'pyvista\[jupyter\]'"):
         jupyter.EmbeddableWidget(plotter=None, width=None, height=None)
 
 
