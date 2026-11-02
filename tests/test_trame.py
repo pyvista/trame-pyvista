@@ -580,6 +580,20 @@ def test_trame_jupyter_custom_size(backend):
         pv.global_theme.window_size = previous_size
 
 
+@pytest.mark.parametrize('backend', ['trame', 'html'])
+def test_trame_marimo_default_size_keeps_aspect_ratio(backend, monkeypatch: pytest.MonkeyPatch):
+    pytest.importorskip('marimo')
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    monkeypatch.setattr(pv.global_theme, 'window_size', pv.themes.Theme().window_size)
+    pl = pv.Plotter(notebook=True)
+    _ = pl.add_mesh(pv.Cone())
+    assert pl._window_size_unset
+    w, h = pl.window_size
+    widget = pl.show(jupyter_backend=backend, return_viewer=True)
+    assert f'aspect-ratio: {w} / {h}' in widget.value
+    assert 'height: 600px' not in widget.value
+
+
 def test_trame_jupyter_custom_handler():
     def handler(viewer, src, **kwargs):
         return IFrame(src, '75%', '500px')
