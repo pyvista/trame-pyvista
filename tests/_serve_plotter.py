@@ -26,14 +26,25 @@ def _build_plotter() -> pv.Plotter:
     return pl
 
 
-async def _main(client_type: str, mode: str, port: int) -> None:
-    """Launch the server, build the UI, print the URL and serve forever."""
+def _build_tight_plane() -> pv.Plotter:
+    """Return a plane with edges shown and a tight parallel camera."""
+    pl = pv.Plotter(notebook=True, window_size=(400, 300))
+    pl.add_mesh(pv.Plane(i_resolution=4, j_resolution=3), color='tomato', show_edges=True)
+    pl.view_xy()
+    pl.camera.tight()
+    return pl
+
+
+async def _main(client_type: str, mode: str, port: int, *, pair: bool) -> None:
+    """Launch the server, build the UI, print the URLs and serve forever."""
     server = get_server(f'serve-{client_type}-{mode}', client_type=client_type)
     launch_server(server, port=port)
     await server.ready
-    pl = _build_plotter()
-    initialize(server, pl, mode=mode)
-    print(f'URL {build_url(server, ui=pl._id_name)}', flush=True)
+    plotters = [_build_tight_plane(), _build_tight_plane()] if pair else [_build_plotter()]
+    for pl in plotters:
+        initialize(server, pl, mode=mode)
+    for pl in plotters:
+        print(f'URL {build_url(server, ui=pl._id_name)}', flush=True)
     await asyncio.Event().wait()
 
 
@@ -42,5 +53,6 @@ if __name__ == '__main__':
     parser.add_argument('--client-type', choices=['vue2', 'vue3'], required=True)
     parser.add_argument('--mode', choices=['trame', 'server', 'client'], required=True)
     parser.add_argument('--port', type=int, default=0)
+    parser.add_argument('--pair', action='store_true', help='serve two tight planes instead')
     args, _ = parser.parse_known_args()
-    asyncio.run(_main(args.client_type, args.mode, args.port))
+    asyncio.run(_main(args.client_type, args.mode, args.port, pair=args.pair))

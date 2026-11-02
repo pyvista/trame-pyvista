@@ -524,13 +524,12 @@ def _png_pixels(data: bytes) -> np.ndarray:
     return np.asarray(Image.open(io.BytesIO(data)).convert('RGB'))
 
 
-@pytest.fixture
-def served_plotter(request):
-    """Serve the two-subplot scene in a subprocess and yield its iframe URL."""
-    client_type, mode = request.param
+@contextlib.contextmanager
+def _serve_plotters(*args: str, count: int = 1):
+    """Run ``_serve_plotter.py`` with ``args`` and yield the first ``count`` iframe URLs."""
     script = Path(__file__).parent / '_serve_plotter.py'
     proc = subprocess.Popen(
-        [sys.executable, str(script), '--client-type', client_type, '--mode', mode],
+        [sys.executable, str(script), *args],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -545,10 +544,10 @@ def served_plotter(request):
 
     Thread(target=drain, daemon=True).start()
     lines: list[str] = []
-    url = None
+    urls: list[str] = []
     deadline = time.monotonic() + 90
     try:
-        while url is None and time.monotonic() < deadline:
+        while len(urls) < count and time.monotonic() < deadline:
             try:
                 line = output.get(timeout=1)
             except queue.Empty:
@@ -557,9 +556,9 @@ def served_plotter(request):
                 continue
             lines.append(line)
             if line.startswith('URL '):
-                url = line.split()[1]
-        assert url is not None, ''.join(lines)
-        yield url
+                urls.append(line.split()[1])
+        assert len(urls) == count, ''.join(lines)
+        yield urls
     finally:
         proc.terminate()
         try:
@@ -567,6 +566,14 @@ def served_plotter(request):
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+
+@pytest.fixture
+def served_plotter(request):
+    """Serve the two-subplot scene in a subprocess and yield its iframe URL."""
+    client_type, mode = request.param
+    with _serve_plotters('--client-type', client_type, '--mode', mode) as (url,):
+        yield url
 
 
 @pytest.mark.needs_playwright
@@ -625,6 +632,42 @@ def test_jupyter_app_renders_in_browser(served_plotter) -> None:
         browser.close()
 
     assert page_errors == []
+
+
+@pytest.mark.needs_playwright
+@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+@pytest.mark.parametrize('mode', ['client', 'server'])
+def test_toggle_leaves_other_viewers_alone(client_type: str, mode: str) -> None:
+    """Toggling edges in one viewer leaves another viewer on the same server unchanged."""
+    from playwright.sync_api import sync_playwright
+
+    args = ('--client-type', client_type, '--mode', mode, '--pair')
+    with _serve_plotters(*args, count=2) as urls, sync_playwright() as p:
+        browser = p.chromium.launch()
+        pages = []
+        for url in urls:
+            page = browser.new_page(viewport={'width': 400, 'height': 300})
+            page.goto(url)
+            page.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
+            pages.append(page)
+        first, second = pages
+        first.wait_for_timeout(2000)
+
+        def rendered(page) -> np.ndarray:
+            view = page.locator('img, canvas').filter(visible=True).first
+            return _png_pixels(view.screenshot()).astype(int)
+
+        before = [rendered(page) for page in pages]
+        first.locator('.mdi-grid, .mdi-grid-off').first.click(force=True)
+        first.wait_for_timeout(2000)
+        second.reload()
+        second.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
+        second.wait_for_timeout(2000)
+        after = [rendered(page) for page in pages]
+        browser.close()
+
+    assert np.abs(after[0] - before[0]).mean() > 1, 'edge toggle did not change its own viewer'
+    assert np.abs(after[1] - before[1]).mean() < 1, 'edge toggle changed the other viewer'
 
 
 def _open_drawn_session(browser, url):
