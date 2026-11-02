@@ -132,6 +132,7 @@ class Viewer(BaseViewer):
             classes='pa-0 ma-0 align-center',
         ) as row:
             server = row.server
+            self._toggles.setdefault(self.SERVER_RENDERING, default_server_rendering)
             # Listen to state changes
             server.state.change(self.EDGES)(self.on_edge_visibility_change)
             server.state.change(self.GRID)(self.on_grid_visibility_change)
@@ -293,14 +294,8 @@ class Viewer(BaseViewer):
         ) as container:
             server = container.server
             # Initialize state variables
-            server.state[self.EDGES] = False
-            server.state[self.GRID] = self.plotter.renderer.cube_axes_actor is not None
-            server.state[self.OUTLINE] = self.plotter.renderer._box_object is not None
-            server.state[self.AXIS] = (
-                self.plotter.renderer.axes_widget is not None
-                and self.plotter.renderer.axes_widget.GetEnabled()
-            )
-            server.state[self.SERVER_RENDERING] = default_server_rendering
+            self._seed_toggle_state()
+            self._set_toggle(self.SERVER_RENDERING, default_server_rendering)
             if add_menu:
                 server.state[self.SHOW_UI] = not collapse_menu
                 with (

@@ -85,15 +85,44 @@ class BaseViewer:
             'server',
             'wasm',
         ]
+        self._toggles = {}
         server.state[self.SHOW_UI] = True
-        server.state[self.GRID] = False
-        server.state[self.OUTLINE] = False
-        server.state[self.EDGES] = False
-        server.state[self.AXIS] = False
-        server.state[self.PARALLEL] = False
+        self._seed_toggle_state()
 
         if animate:
             server.controller.on_client_connected.add_task(self._animate)
+
+    def _seed_toggle_state(self):
+        """Set each toolbar toggle on when any renderer in the scene shows it."""
+        renderers = list(self.plotter.renderers)
+        self._set_toggle(self.GRID, any(ren.cube_axes_actor is not None for ren in renderers))
+        self._set_toggle(self.OUTLINE, any(ren._box_object is not None for ren in renderers))
+        self._set_toggle(
+            self.EDGES,
+            any(
+                actor.prop.show_edges
+                for ren in renderers
+                for actor in ren.actors.values()
+                if isinstance(actor, pv.Actor)
+            ),
+        )
+        self._set_toggle(
+            self.AXIS,
+            any(ren.axes_widget is not None and ren.axes_widget.GetEnabled() for ren in renderers),
+        )
+        self._set_toggle(self.PARALLEL, any(ren.parallel_projection for ren in renderers))
+
+    def _set_toggle(self, key, value):
+        """Set a toggle in the state and record it as applied."""
+        self.server.state[key] = value
+        self._toggles[key] = value
+
+    def _toggle_changed(self, key, value):  # numpydoc ignore=RT01
+        """Record a toggle value and return whether it differs from the last one."""
+        if self._toggles.get(key) == value:
+            return False
+        self._toggles[key] = value
+        return True
 
     async def _animate(self, **_):
         """Continuously redraw all associated views.
@@ -200,6 +229,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.PARALLEL]
+        if not self._toggle_changed(self.PARALLEL, value):
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.enable_parallel_projection()
@@ -217,6 +248,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.EDGES]
+        if not self._toggle_changed(self.EDGES, value):
+            return
         for renderer in self.plotter.renderers:
             for actor in renderer.actors.values():
                 if isinstance(actor, pv.Actor):
@@ -233,6 +266,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.GRID]
+        if not self._toggle_changed(self.GRID, value):
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.show_grid()
@@ -250,6 +285,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.OUTLINE]
+        if not self._toggle_changed(self.OUTLINE, value):
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.add_bounding_box(reset_camera=False)
@@ -267,6 +304,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.AXIS]
+        if not self._toggle_changed(self.AXIS, value):
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.show_axes()
@@ -293,7 +332,8 @@ class BaseViewer:
             Unused keyword arguments.
 
         """
-        if not kwargs[self.SERVER_RENDERING]:
+        value = kwargs[self.SERVER_RENDERING]
+        if self._toggle_changed(self.SERVER_RENDERING, value) and not value:
             self.update_camera()
 
     @property

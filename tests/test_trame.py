@@ -1062,6 +1062,84 @@ def test_viewer_parallel_projection():
     assert not pl.renderer.parallel_projection
 
 
+@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+@pytest.mark.parametrize('mode', ['client', 'server'])
+def test_viewer_first_flush_keeps_scene(client_type, mode, monkeypatch: pytest.MonkeyPatch):
+    """Flushing a new viewer's toolbar state leaves the scene and the views untouched."""
+    server = get_server(f'first_flush_{client_type}_{mode}', client_type=client_type)
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    actor = pl.add_mesh(pv.Cone(), show_edges=True)
+    pl.show_bounds()
+    pl.add_bounding_box()
+    pl.show_axes()
+    pl.enable_parallel_projection()
+    viewer = get_viewer(pl, server=server)
+    calls = []
+    for name in ['update', 'update_camera', 'update_image']:
+        monkeypatch.setattr(viewer, name, lambda name=name, **_: calls.append(name))
+    viewer.ui(mode=mode)
+    server.state.flush()
+    assert calls == []
+    assert actor.prop.show_edges
+    assert pl.renderer.cube_axes_actor is not None
+    assert pl.renderer._box_object is not None
+    assert pl.renderer.axes_widget.GetEnabled()
+    assert pl.renderer.parallel_projection
+    for name in ['EDGES', 'GRID', 'OUTLINE', 'AXIS', 'PARALLEL']:
+        assert server.state[getattr(viewer, name)] is True
+
+
+def test_viewer_rendering_mode_change_pushes_camera_on_switch(monkeypatch: pytest.MonkeyPatch):
+    """Only a switch to client rendering pushes the camera."""
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl)
+    viewer.ui(mode='server')
+    calls = []
+    monkeypatch.setattr(viewer, 'update_camera', lambda **_: calls.append(1))
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: True})
+    assert calls == []
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
+    assert calls == [1]
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: True})
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
+    assert calls == [1, 1]
+
+
+@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+def test_viewer_first_flush_keeps_later_scene_change(client_type):
+    """A scene change made after ``ui()`` survives the first flush."""
+    server = get_server(f'first_flush_later_change_{client_type}', client_type=client_type)
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    actor = pl.add_mesh(pv.Cone())
+    viewer = get_viewer(pl, server=server)
+    viewer.ui(mode='server')
+    actor.prop.show_edges = True
+    pl.camera.tight()
+    server.state.flush()
+    assert actor.prop.show_edges
+    assert pl.renderer.parallel_projection
+
+
+@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+def test_viewer_edge_toggle_reaches_later_actor(client_type):
+    """Turning edges on reaches every actor, including one added after ``ui()``."""
+    server = get_server(f'edge_toggle_later_actor_{client_type}', client_type=client_type)
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    cone = pl.add_mesh(pv.Cone())
+    viewer = get_viewer(pl, server=server)
+    viewer.ui(mode='server')
+    server.state.flush()
+    sphere = pl.add_mesh(pv.Sphere(), show_edges=True)
+    server.state[viewer.EDGES] = True
+    server.state.flush()
+    assert cone.prop.show_edges
+    assert sphere.prop.show_edges
+
+
 def test_viewer_export_requires_a_view():
     pl = pv.Plotter(notebook=True)
     with pytest.raises(TypeError, match='cannot be exported'):
@@ -1189,3 +1267,38 @@ def test_view_export_html_without_data(view_cls, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(view, 'export_geometry', lambda **_: None, raising=False)
     with pytest.raises(ValueError, match='No data to write'):
         view.export_html()
+
+
+def test_viewer_seeds_toggles_from_any_subplot():
+    """A toggle starts on when a subplot other than the active one shows it."""
+    pl = pv.Plotter(notebook=True, shape=(1, 2))
+    pl.add_mesh(pv.Cone())
+    pl.show_bounds()
+    pl.add_bounding_box()
+    pl.enable_parallel_projection()
+    pl.subplot(0, 1)
+    pl.add_mesh(pv.Sphere())
+    viewer = get_viewer(pl)
+    for name in ['GRID', 'OUTLINE', 'PARALLEL']:
+        assert viewer.server.state[getattr(viewer, name)] is True
+
+
+@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+def test_viewer_ui_controls_alone_skips_initial_camera_push(client_type, monkeypatch):
+    """Toolbar controls placed without ``ui()`` push no camera on the first flush."""
+    server = get_server(f'ui_controls_alone_{client_type}', client_type=client_type)
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    pl.add_mesh(pv.Cone())
+    viewer = get_viewer(pl, server=server)
+    calls = []
+    monkeypatch.setattr(viewer, 'update_camera', lambda **_: calls.append(1))
+    with viewer.make_layout(server, template_name=pl._id_name):
+        viewer.ui_controls(mode='trame', default_server_rendering=False)
+    server.state.flush()
+    assert calls == []
+    server.state[viewer.SERVER_RENDERING] = True
+    server.state.flush()
+    server.state[viewer.SERVER_RENDERING] = False
+    server.state.flush()
+    assert calls == [1]
