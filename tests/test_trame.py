@@ -583,17 +583,27 @@ def test_trame_jupyter_custom_size(backend):
 
 
 @pytest.mark.parametrize('backend', ['trame', 'html'])
-def test_trame_marimo_default_size_keeps_aspect_ratio(backend, monkeypatch: pytest.MonkeyPatch):
+def test_trame_marimo_default_size(backend, monkeypatch: pytest.MonkeyPatch):
     pytest.importorskip('marimo')
     monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
     monkeypatch.setattr(pv.global_theme, 'window_size', pv.themes.Theme().window_size)
     pl = pv.Plotter(notebook=True)
     _ = pl.add_mesh(pv.Cone())
     assert pl._window_size_unset
-    w, h = pl.window_size
     widget = pl.show(jupyter_backend=backend, return_viewer=True)
-    assert f'aspect-ratio: {w} / {h}' in widget.value
-    assert 'height: 600px' not in widget.value
+    assert 'width: 100%; height: 576px;' in widget.value
+
+
+@pytest.mark.parametrize('backend', ['trame', 'html'])
+@pytest.mark.parametrize('window_size', [(400, 800), (1200, 900)])
+def test_trame_marimo_keeps_explicit_size(backend, window_size, monkeypatch: pytest.MonkeyPatch):
+    pytest.importorskip('marimo')
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    w, h = window_size
+    pl = pv.Plotter(notebook=True, window_size=window_size)
+    _ = pl.add_mesh(pv.Cone())
+    widget = pl.show(jupyter_backend=backend, return_viewer=True)
+    assert f'max-width: {w}px; height: auto; aspect-ratio: {w} / {h};' in widget.value
 
 
 def test_trame_jupyter_custom_handler():
@@ -795,18 +805,11 @@ def test_iframe_style(width, height, expected):
     assert 'box-sizing: border-box; display: block;' in style
 
 
-@pytest.mark.parametrize(
-    ('width', 'height', 'expected'),
-    [
-        ('100%', '600px', 'width: 100%; height: 600px; max-height: 576px;'),
-        ('400px', '800px', 'max-width: 288px; height: auto; aspect-ratio: 400 / 800;'),
-        ('800px', '300px', 'max-width: 800px; height: auto; aspect-ratio: 800 / 300;'),
-        ('700px', '600px', 'max-width: 672px; height: auto; aspect-ratio: 700 / 600;'),
-    ],
-)
-def test_iframe_style_fits_marimo_output(monkeypatch: pytest.MonkeyPatch, width, height, expected):
+@pytest.mark.parametrize(('width', 'height'), [('100%', '800px'), ('400px', '800px')])
+def test_iframe_style_same_in_marimo(monkeypatch: pytest.MonkeyPatch, width, height):
+    expected = jupyter._iframe_style(width, height)
     monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
-    assert expected in jupyter._iframe_style(width, height)
+    assert jupyter._iframe_style(width, height) == expected
 
 
 def test_widget_is_anywidget():

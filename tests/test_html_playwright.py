@@ -309,6 +309,68 @@ def test_marimo_plots_survive_cell_rerun_and_reload(marimo_url) -> None:
         browser.close()
 
 
+_PLOT_SIZES = [None, [400, 300], [300, 700]]
+_FRAME_SIZE_JS = """(e) => {
+  const box = e.getBoundingClientRect();
+  return [box.width, box.height, e.parentElement.getBoundingClientRect().width];
+}"""
+
+
+def _frame_sizes(page):
+    """Return the width, height and container width of each pyvista iframe on ``page``."""
+    return [frame.evaluate(_FRAME_SIZE_JS) for frame in page.locator('iframe.pyvista').all()]
+
+
+def _check_frame_sizes(frames, default_height):
+    """Check the default frame fills its container and the others match their window size."""
+    (width, height, container), *explicit = frames
+    assert [width, height] == [container, default_height]
+    assert [frame[:2] for frame in explicit] == _PLOT_SIZES[1:]
+
+
+@pytest.mark.needs_playwright
+def test_frame_sizes_match_in_jupyter_and_marimo(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Compare the frame sizes of the same plots in marimo and through the Jupyter widget."""
+    pytest.importorskip('marimo')
+    from playwright.sync_api import sync_playwright
+
+    from trame_pyvista import jupyter
+
+    notebook = tmp_path / 'sizes.py'
+    notebook.write_text((Path(__file__).parent / '_marimo_sizes.py').read_text())
+    (tmp_path / 'pyproject.toml').write_text('[tool.marimo.runtime]\nauto_instantiate = true\n')
+
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: False)
+    monkeypatch.setattr(pv.global_theme, 'window_size', pv.themes.Theme().window_size)
+    widgets = []
+    for size in _PLOT_SIZES:
+        pl = pv.Plotter(notebook=True, window_size=size)
+        pl.add_mesh(pv.Sphere())
+        widgets.append(pl.show(jupyter_backend='html', return_viewer=True))
+
+    with _serve_marimo(notebook, 'edit', '--no-token') as url, sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={'width': 1200, 'height': 1400})
+        for widget in widgets:
+            state = {
+                key: widget.get_state()[key] for key in ('scene', 'iframe_style', '_viewer_page')
+            }
+            page.evaluate(
+                _RENDER_SCENE_JS, [jupyter._SCENE_ESM, state, widget._viewer_page.html_gz]
+            )
+        jupyter_frames = _frame_sizes(page)
+
+        page.goto(url)
+        page.locator('iframe.pyvista').nth(len(_PLOT_SIZES) - 1).wait_for(timeout=90000)
+        marimo_frames = _frame_sizes(page)
+        browser.close()
+
+    _check_frame_sizes(jupyter_frames, 600)
+    _check_frame_sizes(marimo_frames, 576)
+
+
 _SCENE_FALLBACK_JS = """async ([esm, state, gz, html, dropInflate, noKernel, cached]) => {
   const load = () => import(URL.createObjectURL(new Blob([esm], {type: 'text/javascript'})));
   if (dropInflate) delete window.DecompressionStream;
