@@ -8,7 +8,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 import types
+import zipfile
 
 from anywidget import AnyWidget
 import comm
@@ -912,6 +914,9 @@ def test_ipywidgets_fallback_is_deprecated(monkeypatch: pytest.MonkeyPatch):
     expected = jupyter.Widget(viewer, 'http://x', width='10px', height='20px')
     pl = pv.Plotter(notebook=True)
     pl.add_mesh(pv.Sphere())
+    # Both exports stamp their zip entries with the same time
+    clock = types.SimpleNamespace(time=lambda: 1_700_000_000.0, localtime=time.localtime)
+    monkeypatch.setattr(zipfile, 'time', clock)
     expected_scene = jupyter.EmbeddableWidget(pl, width='100%', height='600px')
 
     monkeypatch.setattr(jupyter, 'AnyWidget', object)
