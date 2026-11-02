@@ -12,10 +12,14 @@ import subprocess
 import sys
 from threading import Thread
 import time
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
 import pyvista as pv
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 @pytest.mark.needs_playwright
@@ -525,11 +529,11 @@ def _png_pixels(data: bytes) -> np.ndarray:
 
 
 @contextlib.contextmanager
-def _serve_plotters(*args: str, count: int = 1):
-    """Run ``_serve_plotter.py`` with ``args`` and yield the first ``count`` iframe URLs."""
+def _serve_plotters(*args: str, count: int = 1) -> Iterator[list[str]]:
+    """Serve ``count`` plotters with ``_serve_plotter.py`` and yield their iframe URLs."""
     script = Path(__file__).parent / '_serve_plotter.py'
     proc = subprocess.Popen(
-        [sys.executable, str(script), *args],
+        [sys.executable, str(script), *args, '--count', str(count)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -634,6 +638,29 @@ def test_jupyter_app_renders_in_browser(served_plotter) -> None:
     assert page_errors == []
 
 
+def _view_pixels(page) -> np.ndarray:
+    """Return the page's visible render view as integer pixels."""
+    view = page.locator('img, canvas').filter(visible=True).first
+    return _png_pixels(view.screenshot()).astype(int)
+
+
+def _mean_diff(a: np.ndarray, b: np.ndarray) -> float:
+    """Return the mean absolute pixel difference of two renders."""
+    return float(np.abs(a - b).mean())
+
+
+def _poll_pixels(page, done) -> np.ndarray:
+    """Return the page's render once ``done(previous, current)`` holds, or after 30 seconds."""
+    deadline = time.monotonic() + 30
+    current = _view_pixels(page)
+    while time.monotonic() < deadline:
+        page.wait_for_timeout(500)
+        previous, current = current, _view_pixels(page)
+        if done(previous, current):
+            break
+    return current
+
+
 @pytest.mark.needs_playwright
 @pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
 @pytest.mark.parametrize('mode', ['client', 'server'])
@@ -642,35 +669,34 @@ def test_toggle_leaves_other_viewers_alone(client_type: str, mode: str, scene: s
     """Toggling edges in one viewer leaves the other viewers on the same server unchanged."""
     from playwright.sync_api import sync_playwright
 
-    args = ('--client-type', client_type, '--mode', mode, '--scene', scene, '--count', '3')
+    page_errors: list[str] = []
+    args = ('--client-type', client_type, '--mode', mode, '--scene', scene)
     with _serve_plotters(*args, count=3) as urls, sync_playwright() as p:
         browser = p.chromium.launch()
         pages = []
         for url in urls:
             page = browser.new_page(viewport={'width': 400, 'height': 300})
+            page.on('pageerror', lambda err: page_errors.append(str(err)))
             page.goto(url)
             page.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
             pages.append(page)
         first, *others = pages
-        first.wait_for_timeout(2000)
 
-        def rendered(page) -> np.ndarray:
-            view = page.locator('img, canvas').filter(visible=True).first
-            return _png_pixels(view.screenshot()).astype(int)
-
-        before = [rendered(page) for page in pages]
+        before = [_poll_pixels(page, lambda a, b: _mean_diff(a, b) < 1) for page in pages]
         first.locator('.mdi-grid, .mdi-grid-off').first.click(force=True)
-        first.wait_for_timeout(2000)
-        for page in others:
+        after = [
+            _poll_pixels(first, lambda a, b: _mean_diff(b, before[0]) > 1 and _mean_diff(a, b) < 1)
+        ]
+        for page, expected in zip(others, before[1:], strict=True):
             page.reload()
             page.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
-        first.wait_for_timeout(2000)
-        after = [rendered(page) for page in pages]
+            after.append(_poll_pixels(page, lambda _, b, e=expected: _mean_diff(b, e) < 1))
         browser.close()
 
-    assert np.abs(after[0] - before[0]).mean() > 1, 'edge toggle did not change its own viewer'
+    assert page_errors == []
+    assert _mean_diff(after[0], before[0]) > 1, 'edge toggle did not change its own viewer'
     for i in (1, 2):
-        assert np.abs(after[i] - before[i]).mean() < 1, f'edge toggle changed viewer {i}'
+        assert _mean_diff(after[i], before[i]) < 1, f'edge toggle changed viewer {i}'
 
 
 def _open_drawn_session(browser, url):

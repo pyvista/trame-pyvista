@@ -132,6 +132,7 @@ class Viewer(BaseViewer):
             classes='pa-0 ma-0 align-center',
         ) as row:
             server = row.server
+            self._toggles.setdefault(self.SERVER_RENDERING, default_server_rendering)
             # Listen to state changes
             server.state.change(self.EDGES)(self.on_edge_visibility_change)
             server.state.change(self.GRID)(self.on_grid_visibility_change)

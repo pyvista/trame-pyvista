@@ -141,6 +141,7 @@ class Viewer(BaseViewer):
             style='flex-wrap: nowrap',
         ) as row:
             server = row.server
+            self._toggles.setdefault(self.SERVER_RENDERING, default_server_rendering)
             # Listen to state changes
             server.state.change(self.EDGES)(self.on_edge_visibility_change)
             server.state.change(self.GRID)(self.on_grid_visibility_change)

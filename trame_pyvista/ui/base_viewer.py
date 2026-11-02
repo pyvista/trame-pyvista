@@ -93,22 +93,24 @@ class BaseViewer:
             server.controller.on_client_connected.add_task(self._animate)
 
     def _seed_toggle_state(self):
-        """Set each toolbar toggle to match the current scene."""
-        renderer = self.plotter.renderer
-        widget = renderer.axes_widget
-        self._set_toggle(self.GRID, renderer.cube_axes_actor is not None)
-        self._set_toggle(self.OUTLINE, renderer._box_object is not None)
+        """Set each toolbar toggle on when any renderer in the scene shows it."""
+        renderers = list(self.plotter.renderers)
+        self._set_toggle(self.GRID, any(ren.cube_axes_actor is not None for ren in renderers))
+        self._set_toggle(self.OUTLINE, any(ren._box_object is not None for ren in renderers))
         self._set_toggle(
             self.EDGES,
             any(
                 actor.prop.show_edges
-                for ren in self.plotter.renderers
+                for ren in renderers
                 for actor in ren.actors.values()
                 if isinstance(actor, pv.Actor)
             ),
         )
-        self._set_toggle(self.AXIS, bool(widget is not None and widget.GetEnabled()))
-        self._set_toggle(self.PARALLEL, bool(renderer.camera.parallel_projection))
+        self._set_toggle(
+            self.AXIS,
+            any(ren.axes_widget is not None and ren.axes_widget.GetEnabled() for ren in renderers),
+        )
+        self._set_toggle(self.PARALLEL, any(ren.parallel_projection for ren in renderers))
 
     def _set_toggle(self, key, value):
         """Set a toggle in the state and record it as applied."""
