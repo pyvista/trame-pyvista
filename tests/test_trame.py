@@ -1097,6 +1097,40 @@ def test_viewer_rendering_mode_change_pushes_camera_on_switch(monkeypatch: pytes
     viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
     viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
     assert calls == [1]
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: True})
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
+    assert calls == [1, 1]
+
+
+def test_viewer_first_flush_keeps_later_scene_change():
+    """A scene change made after ``ui()`` survives the first flush."""
+    server = get_server('first_flush_later_change')
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    actor = pl.add_mesh(pv.Cone())
+    viewer = get_viewer(pl, server=server)
+    viewer.ui(mode='server')
+    actor.prop.show_edges = True
+    pl.enable_parallel_projection()
+    server.state.flush()
+    assert actor.prop.show_edges
+    assert pl.renderer.parallel_projection
+
+
+def test_viewer_edge_toggle_reaches_later_actor():
+    """Turning edges on reaches every actor, including one added after ``ui()``."""
+    server = get_server('edge_toggle_later_actor')
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    cone = pl.add_mesh(pv.Cone())
+    viewer = get_viewer(pl, server=server)
+    viewer.ui(mode='server')
+    server.state.flush()
+    sphere = pl.add_mesh(pv.Sphere(), show_edges=True)
+    server.state[viewer.EDGES] = True
+    server.state.flush()
+    assert cone.prop.show_edges
+    assert sphere.prop.show_edges
 
 
 def test_viewer_export_requires_a_view():

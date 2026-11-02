@@ -85,7 +85,7 @@ class BaseViewer:
             'server',
             'wasm',
         ]
-        self._server_rendering = None
+        self._toggles = {}
         server.state[self.SHOW_UI] = True
         self._seed_toggle_state()
 
@@ -94,38 +94,33 @@ class BaseViewer:
 
     def _seed_toggle_state(self):
         """Set each toolbar toggle to match the current scene."""
-        state = self.server.state
-        state[self.GRID] = self._grid_visible()
-        state[self.OUTLINE] = self._outline_visible()
-        state[self.EDGES] = self._edges_visible()
-        state[self.AXIS] = self._axis_visible()
-        state[self.PARALLEL] = self._parallel_projection()
-
-    def _grid_visible(self):  # numpydoc ignore=RT01
-        """Return whether the active renderer shows a grid."""
-        return self.plotter.renderer.cube_axes_actor is not None
-
-    def _outline_visible(self):  # numpydoc ignore=RT01
-        """Return whether the active renderer shows a bounding box."""
-        return self.plotter.renderer._box_object is not None
-
-    def _edges_visible(self):  # numpydoc ignore=RT01
-        """Return whether any actor shows its edges."""
-        return any(
-            actor.prop.show_edges
-            for renderer in self.plotter.renderers
-            for actor in renderer.actors.values()
-            if isinstance(actor, pv.Actor)
+        renderer = self.plotter.renderer
+        widget = renderer.axes_widget
+        self._set_toggle(self.GRID, renderer.cube_axes_actor is not None)
+        self._set_toggle(self.OUTLINE, renderer._box_object is not None)
+        self._set_toggle(
+            self.EDGES,
+            any(
+                actor.prop.show_edges
+                for ren in self.plotter.renderers
+                for actor in ren.actors.values()
+                if isinstance(actor, pv.Actor)
+            ),
         )
+        self._set_toggle(self.AXIS, bool(widget is not None and widget.GetEnabled()))
+        self._set_toggle(self.PARALLEL, bool(renderer.camera.parallel_projection))
 
-    def _axis_visible(self):  # numpydoc ignore=RT01
-        """Return whether the active renderer shows an orientation widget."""
-        widget = self.plotter.renderer.axes_widget
-        return bool(widget is not None and widget.GetEnabled())
+    def _set_toggle(self, key, value):
+        """Set a toggle in the state and record it as applied."""
+        self.server.state[key] = value
+        self._toggles[key] = value
 
-    def _parallel_projection(self):  # numpydoc ignore=RT01
-        """Return whether the active camera uses parallel projection."""
-        return bool(self.plotter.renderer.camera.parallel_projection)
+    def _toggle_changed(self, key, value):  # numpydoc ignore=RT01
+        """Record a toggle value and return whether it differs from the last one."""
+        if self._toggles.get(key) == value:
+            return False
+        self._toggles[key] = value
+        return True
 
     async def _animate(self, **_):
         """Continuously redraw all associated views.
@@ -232,7 +227,7 @@ class BaseViewer:
 
         """
         value = kwargs[self.PARALLEL]
-        if value == self._parallel_projection():
+        if not self._toggle_changed(self.PARALLEL, value):
             return
         for renderer in self.plotter.renderers:
             if value:
@@ -251,7 +246,7 @@ class BaseViewer:
 
         """
         value = kwargs[self.EDGES]
-        if value == self._edges_visible():
+        if not self._toggle_changed(self.EDGES, value):
             return
         for renderer in self.plotter.renderers:
             for actor in renderer.actors.values():
@@ -269,7 +264,7 @@ class BaseViewer:
 
         """
         value = kwargs[self.GRID]
-        if value == self._grid_visible():
+        if not self._toggle_changed(self.GRID, value):
             return
         for renderer in self.plotter.renderers:
             if value:
@@ -288,7 +283,7 @@ class BaseViewer:
 
         """
         value = kwargs[self.OUTLINE]
-        if value == self._outline_visible():
+        if not self._toggle_changed(self.OUTLINE, value):
             return
         for renderer in self.plotter.renderers:
             if value:
@@ -307,7 +302,7 @@ class BaseViewer:
 
         """
         value = kwargs[self.AXIS]
-        if value == self._axis_visible():
+        if not self._toggle_changed(self.AXIS, value):
             return
         for renderer in self.plotter.renderers:
             if value:
@@ -336,10 +331,7 @@ class BaseViewer:
 
         """
         value = kwargs[self.SERVER_RENDERING]
-        if value == self._server_rendering:
-            return
-        self._server_rendering = value
-        if not value:
+        if self._toggle_changed(self.SERVER_RENDERING, value) and not value:
             self.update_camera()
 
     @property

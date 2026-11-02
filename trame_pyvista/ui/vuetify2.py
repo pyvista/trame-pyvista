@@ -294,8 +294,7 @@ class Viewer(BaseViewer):
             server = container.server
             # Initialize state variables
             self._seed_toggle_state()
-            server.state[self.SERVER_RENDERING] = default_server_rendering
-            self._server_rendering = default_server_rendering
+            self._set_toggle(self.SERVER_RENDERING, default_server_rendering)
             if add_menu:
                 server.state[self.SHOW_UI] = not collapse_menu
                 with (
