@@ -555,16 +555,16 @@ def test_trame_jupyter_custom_size(backend):
     _ = pl.add_mesh(pv.Cone())
     widget = pl.show(jupyter_backend=backend, return_viewer=True)
     html = widget.value
-    assert f'width: {w}px' in html
-    assert f'height: {h}px' in html
+    assert f'max-width: {w}px' in html
+    assert f'aspect-ratio: {w} / {h}' in html
 
     pl = pv.Plotter(notebook=True)
     pl.window_size = (w, h)
     _ = pl.add_mesh(pv.Cone())
     widget = pl.show(jupyter_backend=backend, return_viewer=True)
     html = widget.value
-    assert f'width: {w}px' in html
-    assert f'height: {h}px' in html
+    assert f'max-width: {w}px' in html
+    assert f'aspect-ratio: {w} / {h}' in html
 
     # Make sure that if size is default theme, it uses 99%/600px
     previous_size = pv.global_theme.window_size
@@ -745,7 +745,8 @@ def test_embeddable_widget_value():
     src = src.replace('&', '&amp;').replace('"', '&quot;')
     border = 'border: 1px solid rgb(221,221,221);'
     assert widget.value == (
-        f'<iframe srcdoc="{src}" class="pyvista" style="width: 100%; height: 600px; {border}">'
+        f'<iframe srcdoc="{src}" class="pyvista" '
+        f'style="width: 100%; height: 600px; box-sizing: border-box; display: block; {border}">'
         '</iframe>'
     )
 
@@ -760,13 +761,32 @@ def test_embeddable_widget_ignores_html_kwargs():
     assert isinstance(widget, EmbeddableWidget)
 
 
+@pytest.mark.parametrize(
+    ('width', 'height', 'expected'),
+    [
+        ('100%', '600px', 'width: 100%; height: 600px;'),
+        (
+            '800px',
+            '400px',
+            'width: 100%; max-width: 800px; height: auto; aspect-ratio: 800 / 400;',
+        ),
+        ('80em', '400px', 'width: 80em; height: 400px;'),
+    ],
+)
+def test_iframe_style(width, height, expected):
+    style = jupyter._iframe_style(width, height)
+    assert style.startswith(expected)
+    assert 'box-sizing: border-box; display: block;' in style
+
+
 def test_widget_is_anywidget():
     widget = Widget(None, 'http://x', width='10px', height='20px')
     assert isinstance(widget, AnyWidget)
     assert widget.get_state()['value'] == widget.value
     assert widget.value == (
         '<iframe src="http://x" class="pyvista" '
-        'style="width: 10px; height: 20px; border: 1px solid rgb(221,221,221);" '
+        'style="width: 100%; max-width: 10px; height: auto; aspect-ratio: 10 / 20; '
+        'box-sizing: border-box; display: block; border: 1px solid rgb(221,221,221);" '
         'scrolling="no"></iframe>'
     )
 

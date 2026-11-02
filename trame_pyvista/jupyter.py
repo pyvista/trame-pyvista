@@ -11,6 +11,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import re
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -240,12 +241,20 @@ def _warn_ipywidgets_only():
     )
 
 
+_PIXELS = re.compile(r'(\d+(?:\.\d+)?)px')
+
+
 def _iframe_style(width, height) -> str:
-    """Return the iframe style for the given size."""
+    """Return the iframe style for the given size, shrinking a pixel size to fit its cell."""
     # eventually we could maybe expose this, but for now make sure we're at least
     # consistent with matplotlib's color (light gray)
     border = 'border: 1px solid rgb(221,221,221);'
-    return f'width: {width}; height: {height}; {border}'
+    w, h = (_PIXELS.fullmatch(str(value)) for value in (width, height))
+    if w and h:
+        size = f'width: 100%; max-width: {width}; height: auto; aspect-ratio: {w[1]} / {h[1]};'
+    else:
+        size = f'width: {width}; height: {height};'
+    return f'{size} box-sizing: border-box; display: block; {border}'
 
 
 def _iframe_value(src, width, height, iframe_attrs) -> str:
