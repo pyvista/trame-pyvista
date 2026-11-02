@@ -293,14 +293,9 @@ class Viewer(BaseViewer):
         ) as container:
             server = container.server
             # Initialize state variables
-            server.state[self.EDGES] = False
-            server.state[self.GRID] = self.plotter.renderer.cube_axes_actor is not None
-            server.state[self.OUTLINE] = self.plotter.renderer._box_object is not None
-            server.state[self.AXIS] = (
-                self.plotter.renderer.axes_widget is not None
-                and self.plotter.renderer.axes_widget.GetEnabled()
-            )
+            self._seed_toggle_state()
             server.state[self.SERVER_RENDERING] = default_server_rendering
+            self._server_rendering = default_server_rendering
             if add_menu:
                 server.state[self.SHOW_UI] = not collapse_menu
                 with (

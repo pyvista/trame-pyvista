@@ -1057,6 +1057,48 @@ def test_viewer_parallel_projection():
     assert not pl.renderer.parallel_projection
 
 
+@pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
+@pytest.mark.parametrize('mode', ['client', 'server'])
+def test_viewer_first_flush_keeps_scene(client_type, mode, monkeypatch: pytest.MonkeyPatch):
+    """Flushing a new viewer's toolbar state leaves the scene and the views untouched."""
+    server = get_server(f'first_flush_{client_type}_{mode}', client_type=client_type)
+    server.state.ready()
+    pl = pv.Plotter(notebook=True)
+    actor = pl.add_mesh(pv.Cone(), show_edges=True)
+    pl.show_bounds()
+    pl.add_bounding_box()
+    pl.show_axes()
+    pl.enable_parallel_projection()
+    viewer = get_viewer(pl, server=server)
+    calls = []
+    for name in ['update', 'update_camera', 'update_image']:
+        monkeypatch.setattr(viewer, name, lambda name=name, **_: calls.append(name))
+    viewer.ui(mode=mode)
+    server.state.flush()
+    assert calls == []
+    assert actor.prop.show_edges
+    assert pl.renderer.cube_axes_actor is not None
+    assert pl.renderer._box_object is not None
+    assert pl.renderer.axes_widget.GetEnabled()
+    assert pl.renderer.parallel_projection
+    for name in ['EDGES', 'GRID', 'OUTLINE', 'AXIS', 'PARALLEL']:
+        assert server.state[getattr(viewer, name)] is True
+
+
+def test_viewer_rendering_mode_change_pushes_camera_on_switch(monkeypatch: pytest.MonkeyPatch):
+    """Only a switch to client rendering pushes the camera."""
+    pl = pv.Plotter(notebook=True)
+    viewer = get_viewer(pl)
+    viewer.ui(mode='server')
+    calls = []
+    monkeypatch.setattr(viewer, 'update_camera', lambda **_: calls.append(1))
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: True})
+    assert calls == []
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
+    viewer.on_rendering_mode_change(**{viewer.SERVER_RENDERING: False})
+    assert calls == [1]
+
+
 def test_viewer_export_requires_a_view():
     pl = pv.Plotter(notebook=True)
     with pytest.raises(TypeError, match='cannot be exported'):

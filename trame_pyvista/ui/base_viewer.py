@@ -85,15 +85,47 @@ class BaseViewer:
             'server',
             'wasm',
         ]
+        self._server_rendering = None
         server.state[self.SHOW_UI] = True
-        server.state[self.GRID] = False
-        server.state[self.OUTLINE] = False
-        server.state[self.EDGES] = False
-        server.state[self.AXIS] = False
-        server.state[self.PARALLEL] = False
+        self._seed_toggle_state()
 
         if animate:
             server.controller.on_client_connected.add_task(self._animate)
+
+    def _seed_toggle_state(self):
+        """Set each toolbar toggle to match the current scene."""
+        state = self.server.state
+        state[self.GRID] = self._grid_visible()
+        state[self.OUTLINE] = self._outline_visible()
+        state[self.EDGES] = self._edges_visible()
+        state[self.AXIS] = self._axis_visible()
+        state[self.PARALLEL] = self._parallel_projection()
+
+    def _grid_visible(self):  # numpydoc ignore=RT01
+        """Return whether the active renderer shows a grid."""
+        return self.plotter.renderer.cube_axes_actor is not None
+
+    def _outline_visible(self):  # numpydoc ignore=RT01
+        """Return whether the active renderer shows a bounding box."""
+        return self.plotter.renderer._box_object is not None
+
+    def _edges_visible(self):  # numpydoc ignore=RT01
+        """Return whether any actor shows its edges."""
+        return any(
+            actor.prop.show_edges
+            for renderer in self.plotter.renderers
+            for actor in renderer.actors.values()
+            if isinstance(actor, pv.Actor)
+        )
+
+    def _axis_visible(self):  # numpydoc ignore=RT01
+        """Return whether the active renderer shows an orientation widget."""
+        widget = self.plotter.renderer.axes_widget
+        return bool(widget is not None and widget.GetEnabled())
+
+    def _parallel_projection(self):  # numpydoc ignore=RT01
+        """Return whether the active camera uses parallel projection."""
+        return bool(self.plotter.renderer.camera.parallel_projection)
 
     async def _animate(self, **_):
         """Continuously redraw all associated views.
@@ -200,6 +232,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.PARALLEL]
+        if value == self._parallel_projection():
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.enable_parallel_projection()
@@ -217,6 +251,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.EDGES]
+        if value == self._edges_visible():
+            return
         for renderer in self.plotter.renderers:
             for actor in renderer.actors.values():
                 if isinstance(actor, pv.Actor):
@@ -233,6 +269,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.GRID]
+        if value == self._grid_visible():
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.show_grid()
@@ -250,6 +288,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.OUTLINE]
+        if value == self._outline_visible():
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.add_bounding_box(reset_camera=False)
@@ -267,6 +307,8 @@ class BaseViewer:
 
         """
         value = kwargs[self.AXIS]
+        if value == self._axis_visible():
+            return
         for renderer in self.plotter.renderers:
             if value:
                 renderer.show_axes()
@@ -293,7 +335,11 @@ class BaseViewer:
             Unused keyword arguments.
 
         """
-        if not kwargs[self.SERVER_RENDERING]:
+        value = kwargs[self.SERVER_RENDERING]
+        if value == self._server_rendering:
+            return
+        self._server_rendering = value
+        if not value:
             self.update_camera()
 
     @property
