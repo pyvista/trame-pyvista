@@ -713,7 +713,8 @@ def show_trame(
     if plotter.render_window is None:
         raise RuntimeError(CLOSED_PLOTTER_ERROR)
 
-    if plotter._window_size_unset:
+    # A narrow marimo column would turn the fixed 600px height into a portrait frame.
+    if plotter._window_size_unset and not _in_marimo():
         dw, dh = '100%', '600px'
     else:
         width, height = plotter.window_size
