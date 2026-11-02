@@ -779,6 +779,20 @@ def test_iframe_style(width, height, expected):
     assert 'box-sizing: border-box; display: block;' in style
 
 
+@pytest.mark.parametrize(
+    ('width', 'height', 'expected'),
+    [
+        ('100%', '600px', 'width: 100%; height: 600px; max-height: 576px;'),
+        ('400px', '800px', 'max-width: 288px; height: auto; aspect-ratio: 400 / 800;'),
+        ('800px', '300px', 'max-width: 800px; height: auto; aspect-ratio: 800 / 300;'),
+        ('700px', '600px', 'max-width: 672px; height: auto; aspect-ratio: 700 / 600;'),
+    ],
+)
+def test_iframe_style_fits_marimo_output(monkeypatch: pytest.MonkeyPatch, width, height, expected):
+    monkeypatch.setattr(jupyter, '_in_marimo', lambda: True)
+    assert expected in jupyter._iframe_style(width, height)
+
+
 def test_widget_is_anywidget():
     widget = Widget(None, 'http://x', width='10px', height='20px')
     assert isinstance(widget, AnyWidget)
