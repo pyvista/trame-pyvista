@@ -1,4 +1,4 @@
-"""Serve one plotter through the Jupyter code path and print its iframe URL."""
+"""Serve plotters through the Jupyter code path and print their iframe URLs."""
 
 from __future__ import annotations
 
@@ -26,21 +26,29 @@ def _build_plotter() -> pv.Plotter:
     return pl
 
 
-def _build_tight_plane() -> pv.Plotter:
-    """Return a plane with edges shown and a tight parallel camera."""
+def _build_tight_scene(*, show_edges: bool) -> pv.Plotter:
+    """Return a sphere and a cube in an isometric view with a tight parallel camera."""
     pl = pv.Plotter(notebook=True, window_size=(400, 300))
-    pl.add_mesh(pv.Plane(i_resolution=4, j_resolution=3), color='tomato', show_edges=True)
-    pl.view_xy()
+    pl.add_mesh(pv.Sphere(center=(-0.6, 0, 0)), color='tomato', show_edges=show_edges)
+    pl.add_mesh(pv.Cube(center=(0.6, 0, 0)), color='steelblue', show_edges=show_edges)
+    pl.view_isometric()
     pl.camera.tight()
     return pl
 
 
-async def _main(client_type: str, mode: str, port: int, *, pair: bool) -> None:
+SCENES = {
+    'subplots': _build_plotter,
+    'tight': lambda: _build_tight_scene(show_edges=False),
+    'tight-edges': lambda: _build_tight_scene(show_edges=True),
+}
+
+
+async def _main(client_type: str, mode: str, port: int, scene: str, count: int) -> None:
     """Launch the server, build the UI, print the URLs and serve forever."""
     server = get_server(f'serve-{client_type}-{mode}', client_type=client_type)
     launch_server(server, port=port)
     await server.ready
-    plotters = [_build_tight_plane(), _build_tight_plane()] if pair else [_build_plotter()]
+    plotters = [SCENES[scene]() for _ in range(count)]
     for pl in plotters:
         initialize(server, pl, mode=mode)
     for pl in plotters:
@@ -53,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--client-type', choices=['vue2', 'vue3'], required=True)
     parser.add_argument('--mode', choices=['trame', 'server', 'client'], required=True)
     parser.add_argument('--port', type=int, default=0)
-    parser.add_argument('--pair', action='store_true', help='serve two tight planes instead')
+    parser.add_argument('--scene', choices=list(SCENES), default='subplots')
+    parser.add_argument('--count', type=int, default=1, help='number of plotters to serve')
     args, _ = parser.parse_known_args()
-    asyncio.run(_main(args.client_type, args.mode, args.port, pair=args.pair))
+    asyncio.run(_main(args.client_type, args.mode, args.port, args.scene, args.count))

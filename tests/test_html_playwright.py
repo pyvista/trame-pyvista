@@ -637,12 +637,13 @@ def test_jupyter_app_renders_in_browser(served_plotter) -> None:
 @pytest.mark.needs_playwright
 @pytest.mark.parametrize('client_type', ['vue2', 'vue3'])
 @pytest.mark.parametrize('mode', ['client', 'server'])
-def test_toggle_leaves_other_viewers_alone(client_type: str, mode: str) -> None:
-    """Toggling edges in one viewer leaves another viewer on the same server unchanged."""
+@pytest.mark.parametrize('scene', ['tight', 'tight-edges'])
+def test_toggle_leaves_other_viewers_alone(client_type: str, mode: str, scene: str) -> None:
+    """Toggling edges in one viewer leaves the other viewers on the same server unchanged."""
     from playwright.sync_api import sync_playwright
 
-    args = ('--client-type', client_type, '--mode', mode, '--pair')
-    with _serve_plotters(*args, count=2) as urls, sync_playwright() as p:
+    args = ('--client-type', client_type, '--mode', mode, '--scene', scene, '--count', '3')
+    with _serve_plotters(*args, count=3) as urls, sync_playwright() as p:
         browser = p.chromium.launch()
         pages = []
         for url in urls:
@@ -650,7 +651,7 @@ def test_toggle_leaves_other_viewers_alone(client_type: str, mode: str) -> None:
             page.goto(url)
             page.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
             pages.append(page)
-        first, second = pages
+        first, *others = pages
         first.wait_for_timeout(2000)
 
         def rendered(page) -> np.ndarray:
@@ -660,14 +661,16 @@ def test_toggle_leaves_other_viewers_alone(client_type: str, mode: str) -> None:
         before = [rendered(page) for page in pages]
         first.locator('.mdi-grid, .mdi-grid-off').first.click(force=True)
         first.wait_for_timeout(2000)
-        second.reload()
-        second.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
-        second.wait_for_timeout(2000)
+        for page in others:
+            page.reload()
+            page.locator('img, canvas').filter(visible=True).first.wait_for(timeout=30000)
+        first.wait_for_timeout(2000)
         after = [rendered(page) for page in pages]
         browser.close()
 
     assert np.abs(after[0] - before[0]).mean() > 1, 'edge toggle did not change its own viewer'
-    assert np.abs(after[1] - before[1]).mean() < 1, 'edge toggle changed the other viewer'
+    for i in (1, 2):
+        assert np.abs(after[i] - before[i]).mean() < 1, f'edge toggle changed viewer {i}'
 
 
 def _open_drawn_session(browser, url):
