@@ -242,18 +242,27 @@ def _warn_ipywidgets_only():
 
 
 _PIXELS = re.compile(r'(\d+(?:\.\d+)?)px')
+# marimo scrolls an output taller than 610px including its 14.4px padding
+_MARIMO_MAX_HEIGHT = 576
 
 
 def _iframe_style(width, height) -> str:
-    """Return the iframe style for the given size, shrinking a pixel size to fit its cell."""
+    """Return the iframe style for the given size, shrunk to fit its cell or marimo output."""
     # eventually we could maybe expose this, but for now make sure we're at least
     # consistent with matplotlib's color (light gray)
     border = 'border: 1px solid rgb(221,221,221);'
     w, h = (_PIXELS.fullmatch(str(value)) for value in (width, height))
+    in_marimo = _in_marimo()
     if w and h:
-        size = f'width: 100%; max-width: {width}; height: auto; aspect-ratio: {w[1]} / {h[1]};'
+        max_width = width
+        if in_marimo:
+            fit = min(float(w[1]), _MARIMO_MAX_HEIGHT * float(w[1]) / float(h[1]))
+            max_width = f'{fit:g}px'
+        size = f'width: 100%; max-width: {max_width}; height: auto; aspect-ratio: {w[1]} / {h[1]};'
     else:
         size = f'width: {width}; height: {height};'
+        if in_marimo:
+            size += f' max-height: {_MARIMO_MAX_HEIGHT}px;'
     return f'{size} box-sizing: border-box; display: block; {border}'
 
 
