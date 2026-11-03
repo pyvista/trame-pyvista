@@ -1,7 +1,5 @@
 """Notebook with one default-size and two explicit-size plots, for the browser tests."""
 
-from __future__ import annotations
-
 import marimo
 
 __generated_with = '0.25.2'

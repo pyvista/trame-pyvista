@@ -316,12 +316,12 @@ _FRAME_SIZE_JS = """(e) => {
 }"""
 
 
-def _frame_sizes(page):
+def _frame_sizes(page) -> list[list[float]]:
     """Return the width, height and container width of each pyvista iframe on ``page``."""
     return [frame.evaluate(_FRAME_SIZE_JS) for frame in page.locator('iframe.pyvista').all()]
 
 
-def _check_frame_sizes(frames, default_height):
+def _check_frame_sizes(frames: list[list[float]], default_height: int) -> None:
     """Check the default frame fills its container and the others match their window size."""
     (width, height, container), *explicit = frames
     assert [width, height] == [container, default_height]
@@ -329,9 +329,7 @@ def _check_frame_sizes(frames, default_height):
 
 
 @pytest.mark.needs_playwright
-def test_frame_sizes_match_in_jupyter_and_marimo(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_frame_sizes_in_jupyter_and_marimo(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Compare the frame sizes of the same plots in marimo and through the Jupyter widget."""
     pytest.importorskip('marimo')
     from playwright.sync_api import sync_playwright
@@ -342,7 +340,6 @@ def test_frame_sizes_match_in_jupyter_and_marimo(
     notebook.write_text((Path(__file__).parent / '_marimo_sizes.py').read_text())
     (tmp_path / 'pyproject.toml').write_text('[tool.marimo.runtime]\nauto_instantiate = true\n')
 
-    monkeypatch.setattr(jupyter, '_in_marimo', lambda: False)
     monkeypatch.setattr(pv.global_theme, 'window_size', pv.themes.Theme().window_size)
     widgets = []
     for size in _PLOT_SIZES:
